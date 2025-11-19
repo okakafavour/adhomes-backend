@@ -47,7 +47,7 @@ func CreateOrder(c *gin.Context) {
 	// Populate Order fields
 	order.ID = primitive.NewObjectID()
 	order.UserID = cart.UserID
-	order.DeliveryAddress = order.DeliveryAddress
+	// order.DeliveryAddress = order.DeliveryAddress
 
 	// Convert Cart.Items -> Order.ProductIDs
 	productIDs := make([]string, len(cart.Items))
