@@ -29,7 +29,7 @@ func TestMain(m *testing.M) {
 	// Connect to test database
 	config.ConnectTestDB()
 
-	// Initialize controllers
+	// Initialize controllers with services
 	InitUserController()
 	InitProductController()
 	InitOrderController()
@@ -42,8 +42,6 @@ func TestMain(m *testing.M) {
 // -------------------------------
 // Helpers
 // -------------------------------
-
-// Clean users collection safely
 func cleanUsersCollection() {
 	if config.DB == nil {
 		panic("Database not initialized! Did you run TestMain?")
@@ -55,8 +53,8 @@ func cleanUsersCollection() {
 	}
 }
 
-// Setup router
 func setUpUserRouter() *gin.Engine {
+	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.POST("/signup", SignUp)
 	r.POST("/login", Login)
@@ -66,7 +64,6 @@ func setUpUserRouter() *gin.Engine {
 // -------------------------------
 // Tests
 // -------------------------------
-
 func TestToRegisterUser(t *testing.T) {
 	cleanUsersCollection()
 	router := setUpUserRouter()
@@ -85,7 +82,8 @@ func TestToRegisterUser(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.Nil(t, err)
 	assert.Equal(t, "User created successfully", resp["message"])
 }
 
@@ -106,6 +104,35 @@ func TestToRegisterWithoutEmail(t *testing.T) {
 	assert.Equal(t, "Email is required", resp["error"])
 }
 
+func TestToRegisterDuplicateEmail(t *testing.T) {
+	cleanUsersCollection()
+	router := setUpUserRouter()
+
+	body := []byte(`{
+		"name": "Favour",
+		"email": "dup@example.com",
+		"password": "123"
+	}`)
+
+	// First signup
+	req1, _ := http.NewRequest("POST", "/signup", bytes.NewBuffer(body))
+	req1.Header.Set("Content-Type", "application/json")
+	w1 := httptest.NewRecorder()
+	router.ServeHTTP(w1, req1)
+	assert.Equal(t, http.StatusCreated, w1.Code)
+
+	// Duplicate signup
+	req2, _ := http.NewRequest("POST", "/signup", bytes.NewBuffer(body))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, req2)
+	assert.Equal(t, http.StatusBadRequest, w2.Code)
+
+	var resp map[string]interface{}
+	json.Unmarshal(w2.Body.Bytes(), &resp)
+	assert.Equal(t, "email already registered", resp["error"])
+}
+
 func TestToLoginUser(t *testing.T) {
 	cleanUsersCollection()
 	router := setUpUserRouter()
@@ -120,17 +147,55 @@ func TestToLoginUser(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusCreated, w.Code)
 
 	// Now login
-	req, _ = http.NewRequest("POST", "/login", bytes.NewBuffer(signupBody))
-	req.Header.Set("Content-Type", "application/json")
-	w = httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	loginBody := []byte(`{
+		"email": "okaka@example.com",
+		"password": "12345"
+	}`)
+	req2, _ := http.NewRequest("POST", "/login", bytes.NewBuffer(loginBody))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, req2)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, http.StatusOK, w2.Code)
 
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	json.Unmarshal(w2.Body.Bytes(), &resp)
 	assert.Equal(t, "Login successful", resp["message"])
 	assert.NotEmpty(t, resp["token"])
+}
+
+func TestToLoginInvalidPassword(t *testing.T) {
+	cleanUsersCollection()
+	router := setUpUserRouter()
+
+	// Register user
+	body := []byte(`{
+		"name": "Okaka Favour",
+		"email": "okaka@example.com",
+		"password": "12345"
+	}`)
+	req, _ := http.NewRequest("POST", "/signup", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	// Attempt login with wrong password
+	loginBody := []byte(`{
+		"email": "okaka@example.com",
+		"password": "wrongpass"
+	}`)
+	req2, _ := http.NewRequest("POST", "/login", bytes.NewBuffer(loginBody))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, req2)
+
+	assert.Equal(t, http.StatusUnauthorized, w2.Code)
+
+	var resp map[string]interface{}
+	json.Unmarshal(w2.Body.Bytes(), &resp)
+	assert.Equal(t, "invalid email or password", resp["error"])
 }

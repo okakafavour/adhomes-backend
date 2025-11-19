@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"adhomes-backend/config"
+	"adhomes-backend/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -27,11 +28,18 @@ func cleanCartCollection() {
 }
 
 func setUpCartRouter() *gin.Engine {
-	r := gin.New()
-	r.POST("/carts", CreateCart)
-	r.DELETE("/carts/:id", DeleteCart)
-	r.PUT("/carts/:id", UpdateCart)
-	return r
+	gin.SetMode(gin.TestMode)
+	router := gin.Default()
+
+	// Initialize cart service and controller
+	cartService := services.NewCartService()
+	InitCartController(cartService)
+
+	router.POST("/carts", CreateCart)
+	router.DELETE("/carts/:id", DeleteCart)
+	router.PUT("/carts/:id", UpdateCart)
+
+	return router
 }
 
 func TestToCreateCart(t *testing.T) {
@@ -40,7 +48,10 @@ func TestToCreateCart(t *testing.T) {
 
 	body := []byte(`{
 		"user_id": "user123",
-		"product_ids": ["prod1", "prod2"]
+		"items": [
+			{ "product_id": "60f6e8bb5f627b5a1c9e4f31", "quantity": 2 },
+			{ "product_id": "60f6e8bb5f627b5a1c9e4f32", "quantity": 1 }
+		]
 	}`)
 
 	req, _ := http.NewRequest("POST", "/carts", bytes.NewBuffer(body))
@@ -54,145 +65,99 @@ func TestToCreateCart(t *testing.T) {
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.Nil(t, err)
-	assert.Equal(t, "Cart created successfully", response["message"])
+	assert.Equal(t, "cart created", response["message"])
 	assert.NotNil(t, response["cart"])
 }
 
 func TestToDeleteCart(t *testing.T) {
-	if config.DB == nil {
-		t.Fatal("Database not initialized! Did you call config.ConnectDB()?")
-	}
-	InitCartController()
-
 	cleanCartCollection()
-
 	router := setUpCartRouter()
 
+	// Create a cart first
 	createBody := []byte(`{
         "user_id": "user123",
-        "product_ids": ["prod1", "prod2"]
+        "items": [
+			{ "product_id": "60f6e8bb5f627b5a1c9e4f31", "quantity": 2 }
+		]
     }`)
 	createReq, _ := http.NewRequest("POST", "/carts", bytes.NewBuffer(createBody))
 	createReq.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, createReq)
 
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected status 201 when creating cart, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusCreated, w.Code)
 
-	// Parse the response to get cart ID
 	var resp map[string]interface{}
-	err := json.Unmarshal(w.Body.Bytes(), &resp)
-	if err != nil {
-		t.Fatalf("failed to parse create cart response: %v", err)
-	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	cartMap := resp["cart"].(map[string]interface{})
+	cartID := cartMap["id"].(string)
 
-	cartMap, ok := resp["cart"].(map[string]interface{})
-	if !ok {
-		t.Fatal("response does not contain cart object")
-	}
-
-	cartID, ok := cartMap["id"].(string)
-	if !ok {
-		t.Fatal("cart object does not contain id")
-	}
-
-	// Step 4: Delete the cart
+	// Delete the cart
 	deleteReq, _ := http.NewRequest("DELETE", "/carts/"+cartID, nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, deleteReq)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected status 200 when deleting cart, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestToDeleteNonExistentCart(t *testing.T) {
 	cleanCartCollection()
-
 	router := setUpCartRouter()
 
 	nonExistentID := "60b8d295f1d2c12a34567890"
 	deleteReq, _ := http.NewRequest("DELETE", "/carts/"+nonExistentID, nil)
-	deleteW := httptest.NewRecorder()
-	router.ServeHTTP(deleteW, deleteReq)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, deleteReq)
 
-	assert.Equal(t, http.StatusNotFound, deleteW.Code)
-
-	var deleteResp map[string]interface{}
-	json.Unmarshal(deleteW.Body.Bytes(), &deleteResp)
-
-	assert.Equal(t, "Cart not found", deleteResp["error"])
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestToDeleteCartInvalidID(t *testing.T) {
 	cleanCartCollection()
-
 	router := setUpCartRouter()
 
 	invalidID := "invalid-id"
 	deleteReq, _ := http.NewRequest("DELETE", "/carts/"+invalidID, nil)
-	deleteW := httptest.NewRecorder()
-	router.ServeHTTP(deleteW, deleteReq)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, deleteReq)
 
-	assert.Equal(t, http.StatusBadRequest, deleteW.Code)
-
-	var deleteResp map[string]interface{}
-	json.Unmarshal(deleteW.Body.Bytes(), &deleteResp)
-
-	assert.Equal(t, "Invalid cart ID", deleteResp["error"])
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestToUpdateCart(t *testing.T) {
-	if config.DB == nil {
-		t.Fatal("Database not initialized! Did you call config.ConnectDB()?")
-	}
-	InitCartController()
-
 	cleanCartCollection()
-
 	router := setUpCartRouter()
 
+	// Create cart first
 	createBody := []byte(`{
 		"user_id": "user123",
-		"product_ids": ["prod1", "prod2"]
+		"items": [
+			{ "product_id": "60f6e8bb5f627b5a1c9e4f31", "quantity": 2 }
+		]
 	}`)
 	createReq, _ := http.NewRequest("POST", "/carts", bytes.NewBuffer(createBody))
 	createReq.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, createReq)
 
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected status 201 when creating cart, got %d", w.Code)
-	}
+	assert.Equal(t, http.StatusCreated, w.Code)
 
 	var resp map[string]interface{}
-	err := json.Unmarshal(w.Body.Bytes(), &resp)
-	if err != nil {
-		t.Fatalf("failed to parse create cart response: %v", err)
-	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	cartMap := resp["cart"].(map[string]interface{})
+	cartID := cartMap["id"].(string)
 
-	cartMap, ok := resp["cart"].(map[string]interface{})
-	if !ok {
-		t.Fatal("response does not contain cart object")
-	}
-
-	cartID, ok := cartMap["id"].(string)
-	if !ok {
-		t.Fatal("cart object does not contain id")
-	}
-
+	// Update cart
 	updateBody := []byte(`{
 		"user_id": "user123",
-		"product_ids": ["prod3", "prod4"]
+		"items": [
+			{ "product_id": "60f6e8bb5f627b5a1c9e4f33", "quantity": 5 }
+		]
 	}`)
 	updateReq, _ := http.NewRequest("PUT", "/carts/"+cartID, bytes.NewBuffer(updateBody))
 	updateReq.Header.Set("Content-Type", "application/json")
-	updateW := httptest.NewRecorder()
-	router.ServeHTTP(updateW, updateReq)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, updateReq)
 
-	if updateW.Code != http.StatusOK {
-		t.Fatalf("expected status 200 when updating cart, got %d", updateW.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 }

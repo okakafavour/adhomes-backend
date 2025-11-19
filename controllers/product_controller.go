@@ -1,117 +1,72 @@
 package controllers
 
 import (
-	"context"
 	"net/http"
-	"time"
 
-	"adhomes-backend/config"
 	"adhomes-backend/models"
+	"adhomes-backend/services"
 
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var productCollection *mongo.Collection
+var productService services.ProductService
 
 func InitProductController() {
-	productCollection = config.GetCollection("products")
+	productService = services.NewProductService()
 }
 
 func CreateProduct(c *gin.Context) {
 	var product models.Product
-
-	// ✅ Properly bind and validate request
 	if err := c.ShouldBindJSON(&product); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
 
-	// ✅ Assign new ID and timestamp before saving
-	product.ID = primitive.NewObjectID()
-	product.CreatedAt = time.Now()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// ✅ Insert product into MongoDB
-	_, err := productCollection.InsertOne(ctx, product)
+	p, err := productService.CreateProduct(product)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creating product"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product"})
 		return
 	}
 
-	// ✅ Respond with success message and data
+	// Match the test expectation exactly
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Product created successfully",
-		"product": product,
+		"product": p,
 	})
 }
 
-func DeleteProduct(c *gin.Context) {
-	idParam := c.Param("id")
-	productID, err := primitive.ObjectIDFromHex(idParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	result, err := productCollection.DeleteOne(ctx, gin.H{"_id": productID})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting product"})
-		return
-	}
-	if result.DeletedCount == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Product deleted successfully"})
-}
-
 func UpdateProduct(c *gin.Context) {
-	idParam := c.Param("id")
-	productID, err := primitive.ObjectIDFromHex(idParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
-		return
-	}
-
+	id := c.Param("id")
 	var product models.Product
 	if err := c.ShouldBindJSON(&product); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	update := gin.H{
-		"$set": gin.H{
-			"name":        product.Name,
-			"description": product.Description,
-			"price":       product.Price,
-			"category":    product.Category,
-			"image_url":   product.ImageURL,
-		},
-	}
-
-	result, err := productCollection.UpdateOne(ctx, gin.H{"_id": productID}, update)
+	p, err := productService.UpdateProduct(id, product)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating product"})
-		return
-	}
-	if result.MatchedCount == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
+		if err.Error() == "product not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Product updated successfully",
-		"product": product,
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "product updated", "product": p})
+}
+
+func DeleteProduct(c *gin.Context) {
+	id := c.Param("id")
+	err := productService.DeleteProduct(id)
+	if err != nil {
+		if err.Error() == "product not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "product deleted"})
 }

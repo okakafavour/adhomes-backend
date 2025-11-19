@@ -1,108 +1,85 @@
 package controllers
 
 import (
-	"context"
-	"net/http"
-	"time"
-
-	"adhomes-backend/config"
 	"adhomes-backend/models"
+	"adhomes-backend/services"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var CartCollection *mongo.Collection
+var cartService services.CartService
 
-func InitCartController() {
-	CartCollection = config.GetCollection("carts")
+func InitCartController(service services.CartService) {
+	cartService = service
 }
 
 func CreateCart(c *gin.Context) {
-	collection := config.GetCollection("carts")
-
 	var cart models.Cart
 	if err := c.ShouldBindJSON(&cart); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	cart.ID = primitive.NewObjectID()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	_, err := collection.InsertOne(ctx, cart)
+	created, err := cartService.CreateCart(cart)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creating cart"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create cart"})
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Cart created successfully",
-		"cart":    cart,
+		"message": "cart created",
+		"cart":    created,
+	})
+}
+
+func GetCart(c *gin.Context) {
+	userID := c.Param("user_id")
+	cart, err := cartService.GetCartByUserID(userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "cart not found"})
+		return
+	}
+	c.JSON(http.StatusOK, cart)
+}
+
+func UpdateCart(c *gin.Context) {
+	id := c.Param("id")
+	var cart models.Cart
+	if err := c.ShouldBindJSON(&cart); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updated, err := cartService.UpdateCart(id, cart)
+	if err != nil {
+		if err.Error() == "cart not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "cart updated",
+		"cart":    updated,
 	})
 }
 
 func DeleteCart(c *gin.Context) {
-	idParam := c.Param("id")
-	cartID, err := primitive.ObjectIDFromHex(idParam)
+	id := c.Param("id")
+	err := cartService.DeleteCart(id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid cart ID"})
+		if err.Error() == "cart not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else if err.Error() == "invalid cart ID" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete"})
+		}
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	result, err := CartCollection.DeleteOne(ctx, primitive.M{"_id": cartID})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting cart"})
-		return
-	}
-	if result.DeletedCount == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Cart not found"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Cart deleted successfully",
-	})
-}
-
-func UpdateCart(c *gin.Context) {
-	idParam := c.Param("id")
-	cartID, err := primitive.ObjectIDFromHex(idParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid cart ID"})
-		return
-	}
-
-	var cart models.Cart
-	if err := c.ShouldBindJSON(&cart); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	update := primitive.M{
-		"$set": cart,
-	}
-
-	result, err := CartCollection.UpdateOne(ctx, primitive.M{"_id": cartID}, update)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating cart"})
-		return
-	}
-	if result.MatchedCount == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Cart not found"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Cart updated successfully",
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "cart deleted"})
 }
