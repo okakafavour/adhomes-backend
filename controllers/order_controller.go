@@ -4,20 +4,18 @@ import (
 	"adhomes-backend/models"
 	"adhomes-backend/services"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 var orderService services.OrderService
 
-// Initialize the order controller with service
 func InitOrderController() {
 	orderService = services.NewOrderService()
 }
 
-// -------------------------------
-// CREATE ORDER
-// -------------------------------
 func CreateOrder(c *gin.Context) {
 	var order models.Order
 	if err := c.ShouldBindJSON(&order); err != nil {
@@ -37,9 +35,6 @@ func CreateOrder(c *gin.Context) {
 	})
 }
 
-// -------------------------------
-// GET ORDER BY ID
-// -------------------------------
 func GetOrderByID(c *gin.Context) {
 	id := c.Param("id")
 
@@ -52,9 +47,6 @@ func GetOrderByID(c *gin.Context) {
 	c.JSON(http.StatusOK, order)
 }
 
-// -------------------------------
-// GET ORDERS BY USER ID
-// -------------------------------
 func GetOrdersByUserID(c *gin.Context) {
 	userID := c.Param("user_id")
 
@@ -80,4 +72,51 @@ func DeleteOrder(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "order deleted"})
+}
+
+func UpdateOrder(c *gin.Context) {
+	id := c.Param("id")
+	var input struct {
+		PaymentStatus string `json:"payment_status"`
+		OrderStatus   string `json:"status"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		return
+	}
+
+	oid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
+		return
+	}
+
+	// Fetch existing order
+	order, err := orderService.GetOrderByID(oid.Hex())
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+		return
+	}
+
+	// Update fields
+	if input.PaymentStatus != "" {
+		order.PaymentStatus = input.PaymentStatus
+	}
+	if input.OrderStatus != "" {
+		order.OrderStatus = input.OrderStatus
+	}
+	order.UpdatedAt = time.Now()
+
+	// Save update
+	updatedOrder, err := orderService.UpdateOrder(oid.Hex(), order)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update order"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "order updated",
+		"order":   updatedOrder,
+	})
 }

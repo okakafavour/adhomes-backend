@@ -8,4 +8,5 @@ type OrderService interface {
 	GetOrderByID(id string) (models.Order, error)
 	GetOrdersByUserID(userID string) ([]models.Order, error)
 	DeleteOrder(id string) error
+	UpdateOrder(id string, order models.Order) (models.Order, error)
 }

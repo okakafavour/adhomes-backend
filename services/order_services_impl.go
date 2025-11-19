@@ -16,7 +16,6 @@ type orderServiceImpl struct {
 	collection *mongo.Collection
 }
 
-// NewOrderService initializes the order service
 func NewOrderService() OrderService {
 	return &orderServiceImpl{
 		collection: config.DB.Collection("orders"),
@@ -82,4 +81,34 @@ func (s *orderServiceImpl) DeleteOrder(id string) error {
 		return errors.New("order not found")
 	}
 	return nil
+}
+
+func (s *orderServiceImpl) UpdateOrder(id string, order models.Order) (models.Order, error) {
+	oid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return models.Order{}, errors.New("invalid order ID")
+	}
+
+	order.UpdatedAt = time.Now()
+	update := bson.M{
+		"$set": bson.M{
+			"payment_status":   order.PaymentStatus,
+			"order_status":     order.OrderStatus,
+			"delivery_address": order.DeliveryAddress,
+			"items":            order.Items,
+			"total":            order.Total,
+			"updated_at":       order.UpdatedAt,
+		},
+	}
+
+	result, err := s.collection.UpdateOne(context.Background(), bson.M{"_id": oid}, update)
+	if err != nil {
+		return models.Order{}, err
+	}
+	if result.MatchedCount == 0 {
+		return models.Order{}, errors.New("order not found")
+	}
+
+	order.ID = oid
+	return order, nil
 }

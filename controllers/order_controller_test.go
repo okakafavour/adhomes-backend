@@ -17,11 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// -------------------------------
-// Helpers
-// -------------------------------
-
-// Drop orders collection before each test
 func cleanOrdersCollection() {
 	if config.DB == nil {
 		panic("Database not initialized! Did you run TestMain?")
@@ -44,13 +39,10 @@ func setUpOrderRouter() *gin.Engine {
 	router.GET("/orders/:id", GetOrderByID)
 	router.GET("/orders/user/:user_id", GetOrdersByUserID)
 	router.DELETE("/orders/:id", DeleteOrder)
+	router.PUT("/orders/:id", UpdateOrder)
 
 	return router
 }
-
-// -------------------------------
-// TESTS
-// -------------------------------
 
 func TestToCreateOrder(t *testing.T) {
 	cleanOrdersCollection()
@@ -62,7 +54,10 @@ func TestToCreateOrder(t *testing.T) {
 			{ "product_id": "prod1", "quantity": 2 },
 			{ "product_id": "prod2", "quantity": 1 }
 		],
-		"total": 150
+		"total": 150.0,
+		"delivery_address": "123 Main St",
+		"payment_status": "Pending",
+		"status": "Pending"
 	}`)
 
 	req, _ := http.NewRequest("POST", "/orders", bytes.NewBuffer(body))
@@ -82,13 +77,17 @@ func TestToGetOrderByID(t *testing.T) {
 	cleanOrdersCollection()
 	router := setUpOrderRouter()
 
-	// Create order first
 	order := models.Order{
 		UserID: "user123",
 		Items: []models.OrderItem{
 			{ProductID: "prod1", Quantity: 2},
 		},
-		Total: 100,
+		Total:           100.0,
+		DeliveryAddress: "123 Main St",
+		PaymentStatus:   "Pending",
+		OrderStatus:     "Pending",
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
 	}
 	created, _ := services.NewOrderService().CreateOrder(order)
 
@@ -110,14 +109,18 @@ func TestToGetOrdersByUserID(t *testing.T) {
 	service := services.NewOrderService()
 	// Create multiple orders for same user
 	service.CreateOrder(models.Order{
-		UserID: "user123",
-		Items:  []models.OrderItem{{ProductID: "prod1", Quantity: 1}},
-		Total:  50,
+		UserID:    "user123",
+		Items:     []models.OrderItem{{ProductID: "prod1", Quantity: 1}},
+		Total:     50.0,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	})
 	service.CreateOrder(models.Order{
-		UserID: "user123",
-		Items:  []models.OrderItem{{ProductID: "prod2", Quantity: 2}},
-		Total:  100,
+		UserID:    "user123",
+		Items:     []models.OrderItem{{ProductID: "prod2", Quantity: 2}},
+		Total:     100.0,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	})
 
 	req, _ := http.NewRequest("GET", "/orders/user/user123", nil)
@@ -137,13 +140,14 @@ func TestToDeleteOrder(t *testing.T) {
 
 	// Create order first
 	order := models.Order{
-		UserID: "user123",
-		Items:  []models.OrderItem{{ProductID: "prod1", Quantity: 2}},
-		Total:  100,
+		UserID:    "user123",
+		Items:     []models.OrderItem{{ProductID: "prod1", Quantity: 2}},
+		Total:     100.0,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 	created, _ := services.NewOrderService().CreateOrder(order)
 
-	// Delete
 	req, _ := http.NewRequest("DELETE", "/orders/"+created.ID.Hex(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -155,7 +159,7 @@ func TestToGetNonExistentOrder(t *testing.T) {
 	cleanOrdersCollection()
 	router := setUpOrderRouter()
 
-	nonExistentID := "64b8d295f1d2c12a34567890" // random ObjectID
+	nonExistentID := "64b8d295f1d2c12a34567890"
 	req, _ := http.NewRequest("GET", "/orders/"+nonExistentID, nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -171,7 +175,7 @@ func TestToDeleteNonExistentOrder(t *testing.T) {
 	cleanOrdersCollection()
 	router := setUpOrderRouter()
 
-	nonExistentID := "64b8d295f1d2c12a34567890" // random ObjectID
+	nonExistentID := "64b8d295f1d2c12a34567890"
 	req, _ := http.NewRequest("DELETE", "/orders/"+nonExistentID, nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -181,4 +185,40 @@ func TestToDeleteNonExistentOrder(t *testing.T) {
 	var resp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.Equal(t, "order not found", resp["error"])
+}
+
+func TestToUpdateOrderStatusAndPayment(t *testing.T) {
+	cleanOrdersCollection()
+	router := setUpOrderRouter()
+
+	// Create an order first
+	order := models.Order{
+		UserID:          "user123",
+		Items:           []models.OrderItem{{ProductID: "prod1", Quantity: 2}},
+		Total:           150.0,
+		DeliveryAddress: "123 Main St",
+		PaymentStatus:   "Pending",
+		OrderStatus:     "Pending",
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
+	}
+	created, _ := services.NewOrderService().CreateOrder(order)
+
+	// Update order status and payment
+	updateBody := []byte(`{
+		"payment_status": "Paid",
+		"status": "Processing"
+	}`)
+	req, _ := http.NewRequest("PUT", "/orders/"+created.ID.Hex(), bytes.NewBuffer(updateBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	orderResp := resp["order"].(map[string]interface{})
+	assert.Equal(t, "Paid", orderResp["payment_status"])
+	assert.Equal(t, "Processing", orderResp["status"])
 }
