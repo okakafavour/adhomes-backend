@@ -32,6 +32,7 @@ func TestMain(m *testing.M) {
 	// Initialize controllers
 	InitUserController()
 	InitProductController()
+	InitOrderController()
 
 	// Run tests
 	code := m.Run()
