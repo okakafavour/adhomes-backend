@@ -1,75 +1,83 @@
 package controllers
 
 import (
-	"context"
-	"net/http"
-	"time"
-
-	"adhomes-backend/config"
 	"adhomes-backend/models"
+	"adhomes-backend/services"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var orderCollection *mongo.Collection
-var cartCollection *mongo.Collection
+var orderService services.OrderService
 
+// Initialize the order controller with service
 func InitOrderController() {
-	orderCollection = config.DB.Collection("orders")
-	cartCollection = config.DB.Collection("carts")
+	orderService = services.NewOrderService()
 }
 
+// -------------------------------
+// CREATE ORDER
+// -------------------------------
 func CreateOrder(c *gin.Context) {
 	var order models.Order
-
-	// Bind JSON (expecting cart_id + delivery_address)
 	if err := c.ShouldBindJSON(&order); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
 
-	// Validate CartID
-	cartID, err := primitive.ObjectIDFromHex(order.CartID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid cart ID"})
-		return
-	}
-
-	// Fetch Cart from DB
-	var cart models.Cart
-	if err := cartCollection.FindOne(context.Background(), map[string]interface{}{"_id": cartID}).Decode(&cart); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Cart not found"})
-		return
-	}
-
-	// Populate Order fields
-	order.ID = primitive.NewObjectID()
-	order.UserID = cart.UserID
-	// order.DeliveryAddress = order.DeliveryAddress
-
-	// Convert Cart.Items -> Order.ProductIDs
-	productIDs := make([]string, len(cart.Items))
-	for i, item := range cart.Items {
-		productIDs[i] = item.ProductID.Hex()
-	}
-	order.ProductIDs = productIDs
-
-	order.PaymentStatus = "pending"
-	order.OrderStatus = "Processing"
-	order.CreatedAt = time.Now()
-	order.UpdatedAt = time.Now()
-
-	// Insert Order into DB
-	_, err = orderCollection.InsertOne(context.Background(), order)
+	created, err := orderService.CreateOrder(order)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create order"})
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Order created successfully",
-		"order":   order,
+		"message": "order created",
+		"order":   created,
 	})
+}
+
+// -------------------------------
+// GET ORDER BY ID
+// -------------------------------
+func GetOrderByID(c *gin.Context) {
+	id := c.Param("id")
+
+	order, err := orderService.GetOrderByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, order)
+}
+
+// -------------------------------
+// GET ORDERS BY USER ID
+// -------------------------------
+func GetOrdersByUserID(c *gin.Context) {
+	userID := c.Param("user_id")
+
+	orders, err := orderService.GetOrdersByUserID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch orders"})
+		return
+	}
+
+	c.JSON(http.StatusOK, orders)
+}
+
+// -------------------------------
+// DELETE ORDER
+// -------------------------------
+func DeleteOrder(c *gin.Context) {
+	id := c.Param("id")
+
+	err := orderService.DeleteOrder(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "order deleted"})
 }

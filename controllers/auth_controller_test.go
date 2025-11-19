@@ -171,7 +171,6 @@ func TestToLoginInvalidPassword(t *testing.T) {
 	cleanUsersCollection()
 	router := setUpUserRouter()
 
-	// Register user
 	body := []byte(`{
 		"name": "Okaka Favour",
 		"email": "okaka@example.com",
@@ -183,7 +182,6 @@ func TestToLoginInvalidPassword(t *testing.T) {
 	router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	// Attempt login with wrong password
 	loginBody := []byte(`{
 		"email": "okaka@example.com",
 		"password": "wrongpass"

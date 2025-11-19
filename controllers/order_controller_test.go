@@ -10,83 +10,175 @@ import (
 	"time"
 
 	"adhomes-backend/config"
+	"adhomes-backend/models"
+	"adhomes-backend/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
 
-// Clean Orders
-func cleanOrderCollection() {
+// -------------------------------
+// Helpers
+// -------------------------------
+
+// Drop orders collection before each test
+func cleanOrdersCollection() {
 	if config.DB == nil {
 		panic("Database not initialized! Did you run TestMain?")
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
 	if err := config.DB.Collection("orders").Drop(ctx); err != nil {
 		panic(err)
 	}
 }
 
-// Router for Order tests
+// Setup router for tests
 func setUpOrderRouter() *gin.Engine {
-	r := gin.New()
+	gin.SetMode(gin.TestMode)
+	router := gin.Default()
 
-	// IMPORTANT: You must include BOTH carts & orders routes
-	r.POST("/carts", CreateCart)
-	r.POST("/orders", CreateOrder)
+	InitOrderController()
 
-	return r
+	router.POST("/orders", CreateOrder)
+	router.GET("/orders/:id", GetOrderByID)
+	router.GET("/orders/user/:user_id", GetOrdersByUserID)
+	router.DELETE("/orders/:id", DeleteOrder)
+
+	return router
 }
 
-func TestToCreateOrder(t *testing.T) {
-	cleanOrderCollection()
-	cleanCartCollection()
+// -------------------------------
+// TESTS
+// -------------------------------
 
+func TestToCreateOrder(t *testing.T) {
+	cleanOrdersCollection()
 	router := setUpOrderRouter()
 
-	// STEP 1 ➜ Create Cart
-	cartBody := []byte(`{
-		"user_id": "user_123",
-		"product_ids": ["p1", "p2"]
+	body := []byte(`{
+		"user_id": "user123",
+		"items": [
+			{ "product_id": "prod1", "quantity": 2 },
+			{ "product_id": "prod2", "quantity": 1 }
+		],
+		"total": 150
 	}`)
 
-	cartReq, _ := http.NewRequest("POST", "/carts", bytes.NewBuffer(cartBody))
-	cartReq.Header.Set("Content-Type", "application/json")
+	req, _ := http.NewRequest("POST", "/orders", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
 
-	cartW := httptest.NewRecorder()
-	router.ServeHTTP(cartW, cartReq)
+	assert.Equal(t, http.StatusCreated, w.Code)
 
-	assert.Equal(t, http.StatusCreated, cartW.Code)
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.Equal(t, "order created", resp["message"])
+	assert.NotNil(t, resp["order"])
+}
 
-	var cartResp map[string]interface{}
-	json.Unmarshal(cartW.Body.Bytes(), &cartResp)
+func TestToGetOrderByID(t *testing.T) {
+	cleanOrdersCollection()
+	router := setUpOrderRouter()
 
-	cart := cartResp["cart"].(map[string]interface{})
-	cartID := cart["id"].(string)
+	// Create order first
+	order := models.Order{
+		UserID: "user123",
+		Items: []models.OrderItem{
+			{ProductID: "prod1", Quantity: 2},
+		},
+		Total: 100,
+	}
+	created, _ := services.NewOrderService().CreateOrder(order)
 
-	// STEP 2 ➜ Create Order
-	orderBody := []byte(`{
-		"cart_id": "` + cartID + `",
-        "delivery_address": "123 Food Street"
-	}`)
+	req, _ := http.NewRequest("GET", "/orders/"+created.ID.Hex(), nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
 
-	orderReq, _ := http.NewRequest("POST", "/orders", bytes.NewBuffer(orderBody))
-	orderReq.Header.Set("Content-Type", "application/json")
+	assert.Equal(t, http.StatusOK, w.Code)
 
-	orderW := httptest.NewRecorder()
-	router.ServeHTTP(orderW, orderReq)
+	var resp models.Order
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.Equal(t, created.ID.Hex(), resp.ID.Hex())
+}
 
-	assert.Equal(t, http.StatusCreated, orderW.Code)
+func TestToGetOrdersByUserID(t *testing.T) {
+	cleanOrdersCollection()
+	router := setUpOrderRouter()
 
-	var orderResp map[string]interface{}
-	json.Unmarshal(orderW.Body.Bytes(), &orderResp)
+	service := services.NewOrderService()
+	// Create multiple orders for same user
+	service.CreateOrder(models.Order{
+		UserID: "user123",
+		Items:  []models.OrderItem{{ProductID: "prod1", Quantity: 1}},
+		Total:  50,
+	})
+	service.CreateOrder(models.Order{
+		UserID: "user123",
+		Items:  []models.OrderItem{{ProductID: "prod2", Quantity: 2}},
+		Total:  100,
+	})
 
-	assert.Equal(t, "Order created successfully", orderResp["message"])
-	assert.NotNil(t, orderResp["order"])
+	req, _ := http.NewRequest("GET", "/orders/user/user123", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
 
-	order := orderResp["order"].(map[string]interface{})
-	assert.Equal(t, "user_123", order["user_id"])
-	assert.Equal(t, "Processing", order["status"])
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp []models.Order
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.Len(t, resp, 2)
+}
+
+func TestToDeleteOrder(t *testing.T) {
+	cleanOrdersCollection()
+	router := setUpOrderRouter()
+
+	// Create order first
+	order := models.Order{
+		UserID: "user123",
+		Items:  []models.OrderItem{{ProductID: "prod1", Quantity: 2}},
+		Total:  100,
+	}
+	created, _ := services.NewOrderService().CreateOrder(order)
+
+	// Delete
+	req, _ := http.NewRequest("DELETE", "/orders/"+created.ID.Hex(), nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestToGetNonExistentOrder(t *testing.T) {
+	cleanOrdersCollection()
+	router := setUpOrderRouter()
+
+	nonExistentID := "64b8d295f1d2c12a34567890" // random ObjectID
+	req, _ := http.NewRequest("GET", "/orders/"+nonExistentID, nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.Equal(t, "order not found", resp["error"])
+}
+
+func TestToDeleteNonExistentOrder(t *testing.T) {
+	cleanOrdersCollection()
+	router := setUpOrderRouter()
+
+	nonExistentID := "64b8d295f1d2c12a34567890" // random ObjectID
+	req, _ := http.NewRequest("DELETE", "/orders/"+nonExistentID, nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.Equal(t, "order not found", resp["error"])
 }
