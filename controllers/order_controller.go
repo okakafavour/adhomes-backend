@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 var orderService services.OrderService
@@ -59,9 +58,6 @@ func GetOrdersByUserID(c *gin.Context) {
 	c.JSON(http.StatusOK, orders)
 }
 
-// -------------------------------
-// DELETE ORDER
-// -------------------------------
 func DeleteOrder(c *gin.Context) {
 	id := c.Param("id")
 
@@ -86,14 +82,8 @@ func UpdateOrder(c *gin.Context) {
 		return
 	}
 
-	oid, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
-		return
-	}
-
 	// Fetch existing order
-	order, err := orderService.GetOrderByID(oid.Hex())
+	order, err := orderService.GetOrderByID(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
 		return
@@ -108,8 +98,7 @@ func UpdateOrder(c *gin.Context) {
 	}
 	order.UpdatedAt = time.Now()
 
-	// Save update
-	updatedOrder, err := orderService.UpdateOrder(oid.Hex(), order)
+	updatedOrder, err := orderService.UpdateOrder(id, order)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update order"})
 		return

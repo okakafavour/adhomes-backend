@@ -17,6 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// -------------------------------
+// Helpers
+// -------------------------------
+
 func cleanOrdersCollection() {
 	if config.DB == nil {
 		panic("Database not initialized! Did you run TestMain?")
@@ -28,7 +32,6 @@ func cleanOrdersCollection() {
 	}
 }
 
-// Setup router for tests
 func setUpOrderRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.Default()
@@ -43,6 +46,10 @@ func setUpOrderRouter() *gin.Engine {
 
 	return router
 }
+
+// -------------------------------
+// TESTS
+// -------------------------------
 
 func TestToCreateOrder(t *testing.T) {
 	cleanOrdersCollection()
@@ -78,10 +85,8 @@ func TestToGetOrderByID(t *testing.T) {
 	router := setUpOrderRouter()
 
 	order := models.Order{
-		UserID: "user123",
-		Items: []models.OrderItem{
-			{ProductID: "prod1", Quantity: 2},
-		},
+		UserID:          "user123",
+		Items:           []models.OrderItem{{ProductID: "prod1", Quantity: 2}},
 		Total:           100.0,
 		DeliveryAddress: "123 Main St",
 		PaymentStatus:   "Pending",
@@ -105,22 +110,27 @@ func TestToGetOrderByID(t *testing.T) {
 func TestToGetOrdersByUserID(t *testing.T) {
 	cleanOrdersCollection()
 	router := setUpOrderRouter()
-
 	service := services.NewOrderService()
-	// Create multiple orders for same user
+
 	service.CreateOrder(models.Order{
-		UserID:    "user123",
-		Items:     []models.OrderItem{{ProductID: "prod1", Quantity: 1}},
-		Total:     50.0,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		UserID:          "user123",
+		Items:           []models.OrderItem{{ProductID: "prod1", Quantity: 1}},
+		Total:           50.0,
+		DeliveryAddress: "123 Main St",
+		PaymentStatus:   "Pending",
+		OrderStatus:     "Pending",
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
 	})
 	service.CreateOrder(models.Order{
-		UserID:    "user123",
-		Items:     []models.OrderItem{{ProductID: "prod2", Quantity: 2}},
-		Total:     100.0,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		UserID:          "user123",
+		Items:           []models.OrderItem{{ProductID: "prod2", Quantity: 2}},
+		Total:           100.0,
+		DeliveryAddress: "123 Main St",
+		PaymentStatus:   "Pending",
+		OrderStatus:     "Pending",
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
 	})
 
 	req, _ := http.NewRequest("GET", "/orders/user/user123", nil)
@@ -138,13 +148,15 @@ func TestToDeleteOrder(t *testing.T) {
 	cleanOrdersCollection()
 	router := setUpOrderRouter()
 
-	// Create order first
 	order := models.Order{
-		UserID:    "user123",
-		Items:     []models.OrderItem{{ProductID: "prod1", Quantity: 2}},
-		Total:     100.0,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		UserID:          "user123",
+		Items:           []models.OrderItem{{ProductID: "prod1", Quantity: 2}},
+		Total:           100.0,
+		DeliveryAddress: "123 Main St",
+		PaymentStatus:   "Pending",
+		OrderStatus:     "Pending",
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
 	}
 	created, _ := services.NewOrderService().CreateOrder(order)
 
@@ -191,7 +203,6 @@ func TestToUpdateOrderStatusAndPayment(t *testing.T) {
 	cleanOrdersCollection()
 	router := setUpOrderRouter()
 
-	// Create an order first
 	order := models.Order{
 		UserID:          "user123",
 		Items:           []models.OrderItem{{ProductID: "prod1", Quantity: 2}},
@@ -204,7 +215,6 @@ func TestToUpdateOrderStatusAndPayment(t *testing.T) {
 	}
 	created, _ := services.NewOrderService().CreateOrder(order)
 
-	// Update order status and payment
 	updateBody := []byte(`{
 		"payment_status": "Paid",
 		"status": "Processing"
