@@ -43,7 +43,6 @@ func setUpOrderRouter() *gin.Engine {
 	router.GET("/orders/user/:user_id", GetOrdersByUserID)
 	router.DELETE("/orders/:id", DeleteOrder)
 	router.PUT("/orders/:id", UpdateOrder)
-
 	return router
 }
 
@@ -231,4 +230,85 @@ func TestToUpdateOrderStatusAndPayment(t *testing.T) {
 	orderResp := resp["order"].(map[string]interface{})
 	assert.Equal(t, "Paid", orderResp["payment_status"])
 	assert.Equal(t, "Processing", orderResp["status"])
+}
+
+func TestToUpdateOrderStatus(t *testing.T) {
+	cleanOrdersCollection()
+	cleanCartCollection()
+
+	// Set up router with initialized controllers
+	gin.SetMode(gin.TestMode)
+	router := gin.Default()
+
+	InitCartController()
+	InitOrderController()
+
+	router.POST("/carts", CreateCart)
+	router.POST("/orders", CreateOrder)
+	router.PUT("/orders/:id/status", UpdateOrderStatus)
+
+	// ─────────────────────────────
+	// STEP 1: Create Cart
+	// ─────────────────────────────
+	cartBody := []byte(`{
+		"user_id": "user_123",
+		"product_ids": ["p1", "p2"]
+	}`)
+
+	cartReq, _ := http.NewRequest("POST", "/carts", bytes.NewBuffer(cartBody))
+	cartReq.Header.Set("Content-Type", "application/json")
+
+	cartW := httptest.NewRecorder()
+	router.ServeHTTP(cartW, cartReq)
+
+	assert.Equal(t, http.StatusCreated, cartW.Code)
+
+	var cartResp map[string]interface{}
+	json.Unmarshal(cartW.Body.Bytes(), &cartResp)
+
+	cart := cartResp["cart"].(map[string]interface{})
+	cartID := cart["id"].(string)
+
+	// ─────────────────────────────
+	// STEP 2: Create Order
+	// ─────────────────────────────
+	orderBody := []byte(`{
+		"cart_id": "` + cartID + `",
+		"delivery_address": "123 Food Street"
+	}`)
+
+	orderReq, _ := http.NewRequest("POST", "/orders", bytes.NewBuffer(orderBody))
+	orderReq.Header.Set("Content-Type", "application/json")
+
+	orderW := httptest.NewRecorder()
+	router.ServeHTTP(orderW, orderReq)
+
+	assert.Equal(t, http.StatusCreated, orderW.Code)
+
+	var orderResp map[string]interface{}
+	json.Unmarshal(orderW.Body.Bytes(), &orderResp)
+
+	order := orderResp["order"].(map[string]interface{})
+	orderID := order["id"].(string)
+
+	// ─────────────────────────────
+	// STEP 3: Update Order Status
+	// ─────────────────────────────
+	updateBody := []byte(`{
+		"status": "Preparing"
+	}`)
+
+	updateReq, _ := http.NewRequest("PUT", "/orders/"+orderID+"/status", bytes.NewBuffer(updateBody))
+	updateReq.Header.Set("Content-Type", "application/json")
+
+	updateW := httptest.NewRecorder()
+	router.ServeHTTP(updateW, updateReq)
+
+	assert.Equal(t, http.StatusOK, updateW.Code)
+
+	var updateResp map[string]interface{}
+	json.Unmarshal(updateW.Body.Bytes(), &updateResp)
+
+	assert.Equal(t, "Order status updated successfully", updateResp["message"])
+	assert.Equal(t, "Preparing", updateResp["new_status"])
 }

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"adhomes-backend/config"
-	"adhomes-backend/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -32,8 +31,7 @@ func setUpCartRouter() *gin.Engine {
 	router := gin.Default()
 
 	// Initialize cart service and controller
-	cartService := services.NewCartService()
-	InitCartController(cartService)
+	InitCartController()
 
 	router.POST("/carts", CreateCart)
 	router.DELETE("/carts/:id", DeleteCart)

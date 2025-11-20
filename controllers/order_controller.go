@@ -109,3 +109,40 @@ func UpdateOrder(c *gin.Context) {
 		"order":   updatedOrder,
 	})
 }
+
+func UpdateOrderStatus(c *gin.Context) {
+	id := c.Param("id")
+
+	var body struct {
+		Status string `json:"status"`
+	}
+
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Call the service implementation
+	err := orderService.UpdateOrderStatus(id, body.Status)
+	if err != nil {
+		switch err.Error() {
+		case "invalid order ID":
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
+			return
+		case "invalid order status":
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order status"})
+			return
+		case "order not found":
+			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+			return
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update order status"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "Order status updated successfully",
+		"new_status": body.Status,
+	})
+}

@@ -3,6 +3,7 @@ package controllers
 import (
 	"adhomes-backend/models"
 	"adhomes-backend/services"
+
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,8 +11,8 @@ import (
 
 var cartService services.CartService
 
-func InitCartController(service services.CartService) {
-	cartService = service
+func InitCartController() {
+	cartService = services.NewCartService()
 }
 
 func CreateCart(c *gin.Context) {

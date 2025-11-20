@@ -3,6 +3,7 @@ package services
 import (
 	"adhomes-backend/config"
 	"adhomes-backend/models"
+	"adhomes-backend/utils"
 	"context"
 	"errors"
 	"time"
@@ -111,4 +112,38 @@ func (s *orderServiceImpl) UpdateOrder(id string, order models.Order) (models.Or
 
 	order.ID = oid
 	return order, nil
+}
+
+func (s *orderServiceImpl) UpdateOrderStatus(orderID string, newStatus string) error {
+	// Validate ObjectID
+	objID, err := primitive.ObjectIDFromHex(orderID)
+	if err != nil {
+		return errors.New("invalid order ID")
+	}
+
+	// Validate status
+	if !utils.IsValidStatus(newStatus) {
+		return errors.New("invalid order status")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	update := bson.M{
+		"$set": bson.M{
+			"status":     newStatus,
+			"updated_at": time.Now(),
+		},
+	}
+
+	result, err := s.collection.UpdateByID(ctx, objID, update)
+	if err != nil {
+		return errors.New("failed to update order status")
+	}
+
+	if result.MatchedCount == 0 {
+		return errors.New("order not found")
+	}
+
+	return nil
 }
