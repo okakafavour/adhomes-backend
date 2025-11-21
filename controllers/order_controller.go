@@ -3,6 +3,7 @@ package controllers
 import (
 	"adhomes-backend/models"
 	"adhomes-backend/services"
+	"adhomes-backend/services_impl"
 	"net/http"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 var orderService services.OrderService
 
 func InitOrderController() {
-	orderService = services.NewOrderService()
+	orderService = services_impl.NewOrderService()
 }
 
 func CreateOrder(c *gin.Context) {

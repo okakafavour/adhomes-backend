@@ -1,8 +1,10 @@
-package services
+package services_impl
 
 import (
 	"adhomes-backend/config"
 	"adhomes-backend/models"
+	"adhomes-backend/services"
+
 	"context"
 	"errors"
 	"time"
@@ -16,7 +18,7 @@ type cartServiceImpl struct {
 	collection *mongo.Collection
 }
 
-func NewCartService() CartService {
+func NewCartService() services.CartService {
 	return &cartServiceImpl{
 		collection: config.DB.Collection("carts"),
 	}

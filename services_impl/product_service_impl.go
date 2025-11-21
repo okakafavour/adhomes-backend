@@ -1,4 +1,4 @@
-package services
+package services_impl
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	"adhomes-backend/config"
 	"adhomes-backend/models"
+	"adhomes-backend/services"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -17,7 +18,7 @@ type ProductServiceImpl struct {
 	collection *mongo.Collection
 }
 
-func NewProductService() ProductService {
+func NewProductService() services.ProductService {
 	return &ProductServiceImpl{
 		collection: config.GetCollection("products"),
 	}

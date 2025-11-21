@@ -1,4 +1,4 @@
-package services
+package services_impl
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	"adhomes-backend/config"
 	"adhomes-backend/models"
+	"adhomes-backend/services"
 	"adhomes-backend/utils"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -18,7 +19,7 @@ type userServiceImpl struct {
 	collection *mongo.Collection
 }
 
-func NewUserService() UserService {
+func NewUserService() services.UserService {
 	return &userServiceImpl{
 		collection: config.GetCollection("users"),
 	}

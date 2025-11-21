@@ -11,7 +11,7 @@ import (
 
 	"adhomes-backend/config"
 	"adhomes-backend/models"
-	"adhomes-backend/services"
+	"adhomes-backend/services_impl"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -93,7 +93,7 @@ func TestToGetOrderByID(t *testing.T) {
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
-	created, _ := services.NewOrderService().CreateOrder(order)
+	created, _ := services_impl.NewOrderService().CreateOrder(order)
 
 	req, _ := http.NewRequest("GET", "/orders/"+created.ID.Hex(), nil)
 	w := httptest.NewRecorder()
@@ -109,7 +109,7 @@ func TestToGetOrderByID(t *testing.T) {
 func TestToGetOrdersByUserID(t *testing.T) {
 	cleanOrdersCollection()
 	router := setUpOrderRouter()
-	service := services.NewOrderService()
+	service := services_impl.NewOrderService()
 
 	service.CreateOrder(models.Order{
 		UserID:          "user123",
@@ -157,7 +157,7 @@ func TestToDeleteOrder(t *testing.T) {
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
-	created, _ := services.NewOrderService().CreateOrder(order)
+	created, _ := services_impl.NewOrderService().CreateOrder(order)
 
 	req, _ := http.NewRequest("DELETE", "/orders/"+created.ID.Hex(), nil)
 	w := httptest.NewRecorder()
@@ -212,7 +212,7 @@ func TestToUpdateOrderStatusAndPayment(t *testing.T) {
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
-	created, _ := services.NewOrderService().CreateOrder(order)
+	created, _ := services_impl.NewOrderService().CreateOrder(order)
 
 	updateBody := []byte(`{
 		"payment_status": "Paid",

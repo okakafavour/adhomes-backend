@@ -5,6 +5,7 @@ import (
 
 	"adhomes-backend/models"
 	"adhomes-backend/services"
+	"adhomes-backend/services_impl"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,7 +13,7 @@ import (
 var userService services.UserService
 
 func InitUserController() {
-	userService = services.NewUserService()
+	userService = services_impl.NewUserService()
 }
 
 // ------------------

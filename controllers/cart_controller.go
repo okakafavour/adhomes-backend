@@ -3,6 +3,7 @@ package controllers
 import (
 	"adhomes-backend/models"
 	"adhomes-backend/services"
+	"adhomes-backend/services_impl"
 
 	"net/http"
 
@@ -12,7 +13,7 @@ import (
 var cartService services.CartService
 
 func InitCartController() {
-	cartService = services.NewCartService()
+	cartService = services_impl.NewCartService()
 }
 
 func CreateCart(c *gin.Context) {

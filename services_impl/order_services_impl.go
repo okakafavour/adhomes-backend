@@ -1,9 +1,11 @@
-package services
+package services_impl
 
 import (
 	"adhomes-backend/config"
 	"adhomes-backend/models"
+	"adhomes-backend/services"
 	"adhomes-backend/utils"
+
 	"context"
 	"errors"
 	"time"
@@ -17,7 +19,7 @@ type orderServiceImpl struct {
 	collection *mongo.Collection
 }
 
-func NewOrderService() OrderService {
+func NewOrderService() services.OrderService {
 	return &orderServiceImpl{
 		collection: config.DB.Collection("orders"),
 	}
