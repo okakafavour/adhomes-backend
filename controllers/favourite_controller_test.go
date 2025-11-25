@@ -121,3 +121,56 @@ func TestGetAllFavourite(t *testing.T) {
 	assert.Contains(t, productIDs, "prodA")
 	assert.Contains(t, productIDs, "prodB")
 }
+
+func TestRemoveFavourite(t *testing.T) {
+	// Clean collection before test
+	cleanFavoritesCollection()
+	router := setUpFavoriteRouter()
+
+	// 1️⃣ Add a favorite first
+	addBody := []byte(`{
+		"user_id": "user123",
+		"product_id": "prod123"
+	}`)
+	addReq, _ := http.NewRequest("POST", "/favorites", bytes.NewBuffer(addBody))
+	addReq.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, addReq)
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	// Extract favorite ID
+	var addResp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &addResp)
+	favMap := addResp["favorite"].(map[string]interface{})
+	favID := favMap["id"].(string)
+
+	// 2️⃣ Remove the favorite
+	removeReq, _ := http.NewRequest("DELETE", "/favorites/"+favID, nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, removeReq)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var removeResp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &removeResp)
+	assert.Equal(t, "removed from favorites", removeResp["message"])
+
+	// 3️⃣ Check that favorites for user are now empty
+	getReq, _ := http.NewRequest("GET", "/favorites/user123", nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, getReq)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var getResp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &getResp)
+
+	// Safely handle nil favorites
+	var favorites []interface{}
+	if getResp["favorites"] != nil {
+		favorites = getResp["favorites"].([]interface{})
+	} else {
+		favorites = []interface{}{}
+	}
+
+	assert.Len(t, favorites, 0) // Expect 0 favorites after deletion
+}
