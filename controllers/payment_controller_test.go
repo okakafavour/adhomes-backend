@@ -66,7 +66,7 @@ func TestMakePayment(t *testing.T) {
 	paymentService := &services_impl.PaymentServiceImpl{
 		PaymentCollection: db.Collection("payments"),
 		OrderCollection:   db.Collection("orders"),
-		HttpClient:        &fakeHTTPClient{}, // inject fake client
+		HttpClient:        &fakeHTTPClient{},
 	}
 	walletService := services_impl.NewWalletService()
 
