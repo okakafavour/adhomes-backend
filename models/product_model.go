@@ -14,4 +14,5 @@ type Product struct {
 	Price       float64            `bson:"price" json:"price" binding:"required"`
 	ImageURL    string             `bson:"image_url" json:"image_url"`
 	CreatedAt   time.Time          `bson:"created_at" json:"created_at"`
+	UpdatedAt   time.Time          `bson:"updated_at" json:"updated_at"`
 }

@@ -149,3 +149,21 @@ func (s *orderServiceImpl) UpdateOrderStatus(orderID string, newStatus string) e
 
 	return nil
 }
+
+func (s *orderServiceImpl) GetAllOrders() ([]models.Order, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cursor, err := s.collection.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var orders []models.Order
+	if err := cursor.All(ctx, &orders); err != nil {
+		return nil, err
+	}
+
+	return orders, nil
+}

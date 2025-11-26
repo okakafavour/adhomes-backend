@@ -9,4 +9,6 @@ type OrderService interface {
 	DeleteOrder(id string) error
 	UpdateOrder(id string, order models.Order) (models.Order, error)
 	UpdateOrderStatus(orderID string, newStatus string) error
+
+	GetAllOrders() ([]models.Order, error)
 }

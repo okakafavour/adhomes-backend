@@ -21,7 +21,9 @@ func cleanProductCollection() {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := config.DB.Collection("products").Drop(ctx); err != nil {
+
+	err := config.DB.Collection("products").Drop(ctx)
+	if err != nil {
 		panic(err)
 	}
 }
@@ -29,11 +31,14 @@ func cleanProductCollection() {
 func setUpProductRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.Default()
+
 	InitProductController()
 
 	router.POST("/products", CreateProduct)
 	router.PUT("/products/:id", UpdateProduct)
 	router.DELETE("/products/:id", DeleteProduct)
+	router.GET("/products", GetAllProducts)
+
 	return router
 }
 
@@ -77,6 +82,7 @@ func TestToUpdateProduct(t *testing.T) {
 		"image_url":   "https://example.com/phone.jpg",
 	}
 	body, _ := json.Marshal(product)
+
 	req, _ := http.NewRequest("POST", "/products", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -84,6 +90,7 @@ func TestToUpdateProduct(t *testing.T) {
 
 	var resp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &resp)
+
 	productID := resp["product"].(map[string]interface{})["id"].(string)
 
 	// Now update
@@ -95,8 +102,10 @@ func TestToUpdateProduct(t *testing.T) {
 		"image_url":   "https://example.com/phonepro.jpg",
 	}
 	updateBody, _ := json.Marshal(update)
+
 	updateReq, _ := http.NewRequest("PUT", "/products/"+productID, bytes.NewBuffer(updateBody))
 	updateReq.Header.Set("Content-Type", "application/json")
+
 	updateW := httptest.NewRecorder()
 	router.ServeHTTP(updateW, updateReq)
 
@@ -116,6 +125,7 @@ func TestToDeleteProduct(t *testing.T) {
 		"image_url":   "https://example.com/tablet.jpg",
 	}
 	body, _ := json.Marshal(product)
+
 	req, _ := http.NewRequest("POST", "/products", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -123,6 +133,7 @@ func TestToDeleteProduct(t *testing.T) {
 
 	var resp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &resp)
+
 	productID := resp["product"].(map[string]interface{})["id"].(string)
 
 	// Delete the product
