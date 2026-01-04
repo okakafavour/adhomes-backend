@@ -16,6 +16,11 @@ func InitCartController() {
 	cartService = services_impl.NewCartService()
 }
 
+func CartControllerSingleton() services.CartService {
+	InitCartController()
+	return cartService
+}
+
 func CreateCart(c *gin.Context) {
 	var cart models.Cart
 	if err := c.ShouldBindJSON(&cart); err != nil {

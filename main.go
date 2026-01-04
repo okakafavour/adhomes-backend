@@ -2,43 +2,25 @@ package main
 
 import (
 	"adhomes-backend/config"
-	"adhomes-backend/controllers"
-	"adhomes-backend/services_impl"
-	"net/http"
-	"time"
+	"adhomes-backend/routes"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
 
 func main() {
-	// Load .env
+	// Load .env file
 	godotenv.Load()
 
 	// Connect to MongoDB
 	config.ConnectDB()
 
-	// ------------------------------
-	// Initialize services
-	// ------------------------------
-	paymentService := &services_impl.PaymentServiceImpl{
-		PaymentCollection: config.DB.Collection("payments"),
-		OrderCollection:   config.DB.Collection("orders"),
-		HttpClient:        &http.Client{Timeout: 10 * time.Second},
-	}
+	// Create Gin router
+	router := gin.Default()
 
-	walletService := services_impl.NewWalletService()
+	// Setup all routes
+	routes.SetupRoutes(router)
 
-	paymentController := controllers.NewPaymentController(paymentService, walletService)
-
-	r := gin.Default()
-
-	controllers.InitUserController()
-
-	r.POST("/signup", controllers.SignUp)
-	r.POST("/login", controllers.Login)
-
-	r.POST("/payments", paymentController.MakePayment)
-
-	r.Run(":8080")
+	// Start server
+	router.Run(":8080")
 }

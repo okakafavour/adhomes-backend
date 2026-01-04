@@ -9,14 +9,12 @@ import (
 	"os"
 	"time"
 
-	"adhomes-backend/config"
 	"adhomes-backend/models"
+	"adhomes-backend/repositories"
 	"adhomes-backend/services"
 
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type HTTPClient interface {
@@ -24,9 +22,8 @@ type HTTPClient interface {
 }
 
 type PaymentServiceImpl struct {
-	PaymentCollection *mongo.Collection
-	OrderCollection   *mongo.Collection
-	HttpClient        HTTPClient
+	paymentRepo *repositories.PaymentRepository
+	httpClient  HTTPClient
 }
 
 // ------------------------
@@ -34,16 +31,25 @@ type PaymentServiceImpl struct {
 // ------------------------
 func NewPaymentService() services.PaymentService {
 	return &PaymentServiceImpl{
-		PaymentCollection: config.DB.Collection("payments"),
-		OrderCollection:   config.DB.Collection("orders"),
-		HttpClient:        &http.Client{Timeout: 10 * time.Second},
+		paymentRepo: repositories.NewPaymentRepository(),
+		httpClient:  &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
 // ------------------------
 // Initialize Payment (Paystack)
 // ------------------------
-func (s *PaymentServiceImpl) InitializePayment(orderID, userID string, amount float64, email string) (*models.Payment, string, error) {
+func (s *PaymentServiceImpl) InitializePayment(
+	orderID,
+	userID string,
+	amount float64,
+	email string,
+) (*models.Payment, string, error) {
+
+	if amount <= 0 {
+		return nil, "", errors.New("invalid amount")
+	}
+
 	reference := uuid.New().String()
 
 	payment := models.Payment{
@@ -58,13 +64,12 @@ func (s *PaymentServiceImpl) InitializePayment(orderID, userID string, amount fl
 		UpdatedAt: time.Now(),
 	}
 
-	// Save payment in DB
-	_, err := s.PaymentCollection.InsertOne(context.Background(), payment)
-	if err != nil {
+	ctx := context.Background()
+
+	if err := s.paymentRepo.Create(ctx, payment); err != nil {
 		return nil, "", err
 	}
 
-	// Paystack request
 	reqBody := map[string]interface{}{
 		"email":     email,
 		"amount":    int(amount * 100),
@@ -73,71 +78,78 @@ func (s *PaymentServiceImpl) InitializePayment(orderID, userID string, amount fl
 
 	bodyBytes, _ := json.Marshal(reqBody)
 
-	req, _ := http.NewRequest("POST", "https://api.paystack.co/transaction/initialize", bytes.NewBuffer(bodyBytes))
+	req, _ := http.NewRequest(
+		"POST",
+		"https://api.paystack.co/transaction/initialize",
+		bytes.NewBuffer(bodyBytes),
+	)
+
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+os.Getenv("PAYSTACK_SECRET_KEY"))
 
-	resp, err := s.HttpClient.Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return nil, "", err
 	}
 	defer resp.Body.Close()
 
-	var paystackRes map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&paystackRes)
-
-	if resp.StatusCode != 200 {
-		return nil, "", errors.New("failed to initialize payment with Paystack")
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", errors.New("failed to initialize payment")
 	}
 
-	data := paystackRes["data"].(map[string]interface{})
-	paymentURL := data["authorization_url"].(string)
+	var paystackRes struct {
+		Data struct {
+			AuthorizationURL string `json:"authorization_url"`
+		} `json:"data"`
+	}
 
-	return &payment, paymentURL, nil
+	if err := json.NewDecoder(resp.Body).Decode(&paystackRes); err != nil {
+		return nil, "", err
+	}
+
+	return &payment, paystackRes.Data.AuthorizationURL, nil
 }
 
 // ------------------------
-// Update Payment Status (callback from Paystack)
+// Update Payment Status (Webhook)
 // ------------------------
-func (s *PaymentServiceImpl) UpdatePaymentStatus(reference, status string) (*models.Payment, error) {
-	var payment models.Payment
+func (s *PaymentServiceImpl) UpdatePaymentStatus(
+	reference string,
+	status string,
+) (*models.Payment, error) {
 
-	// Find payment by reference
-	err := s.PaymentCollection.FindOne(context.Background(), bson.M{"reference": reference}).Decode(&payment)
-	if err != nil {
-		return nil, errors.New("payment not found")
-	}
+	ctx := context.Background()
 
-	// Update payment status
-	_, err = s.PaymentCollection.UpdateOne(
-		context.Background(),
-		bson.M{"reference": reference},
-		bson.M{"$set": bson.M{"status": status, "updated_at": time.Now()}},
-	)
+	payment, err := s.paymentRepo.FindByReference(ctx, reference)
 	if err != nil {
 		return nil, err
 	}
 
+	if err := s.paymentRepo.UpdateStatus(ctx, reference, status); err != nil {
+		return nil, err
+	}
+
 	if status == "success" {
-		_, _ = s.OrderCollection.UpdateOne(
-			context.Background(),
-			bson.M{"_id": payment.OrderID},
-			bson.M{"$set": bson.M{"status": "Processing"}},
+		_ = s.paymentRepo.UpdateOrderStatus(
+			ctx,
+			payment.OrderID,
+			"Processing",
 		)
 	}
 
 	payment.Status = status
-	return &payment, nil
+	return payment, nil
 }
 
 // ------------------------
 // Get Payment by Reference
 // ------------------------
-func (s *PaymentServiceImpl) GetPaymentByReference(reference string) (*models.Payment, error) {
-	var payment models.Payment
-	err := s.PaymentCollection.FindOne(context.Background(), bson.M{"reference": reference}).Decode(&payment)
-	if err != nil {
-		return nil, err
-	}
-	return &payment, nil
+func (s *PaymentServiceImpl) GetPaymentByReference(
+	reference string,
+) (*models.Payment, error) {
+
+	return s.paymentRepo.FindByReference(
+		context.Background(),
+		reference,
+	)
 }

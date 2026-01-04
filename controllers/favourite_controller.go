@@ -9,14 +9,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type FavoriteController struct {
+type FavouriteController struct {
 	favoriteService services.FavouriteService
 }
 
-var favouriteController *FavoriteController
+var favouriteController *FavouriteController
 
-func NewFavoriteController(service services.FavouriteService) *FavoriteController {
-	return &FavoriteController{
+func FavouriteControllerSingleton() *FavouriteController {
+	if adminController == nil {
+		InitFavouriteController()
+	}
+	return favouriteController
+}
+
+func NewFavoriteController(service services.FavouriteService) *FavouriteController {
+	return &FavouriteController{
 		favoriteService: service,
 	}
 }
@@ -26,7 +33,7 @@ func InitFavouriteController() {
 	favouriteController = NewFavoriteController(favService)
 }
 
-func (fc *FavoriteController) AddFavorite(ctx *gin.Context) {
+func (fc *FavouriteController) AddFavorite(ctx *gin.Context) {
 	var req struct {
 		UserID    string `json:"user_id"`
 		ProductID string `json:"product_id"`
@@ -48,7 +55,7 @@ func (fc *FavoriteController) AddFavorite(ctx *gin.Context) {
 	})
 }
 
-func (fc *FavoriteController) GetFavorites(ctx *gin.Context) {
+func (fc *FavouriteController) GetFavorites(ctx *gin.Context) {
 	userID := ctx.Param("user_id")
 	favorites, err := fc.favoriteService.GetFavourites(userID)
 	if err != nil {
@@ -61,7 +68,7 @@ func (fc *FavoriteController) GetFavorites(ctx *gin.Context) {
 	})
 }
 
-func (fc *FavoriteController) RemoveFavorite(ctx *gin.Context) {
+func (fc *FavouriteController) RemoveFavorite(ctx *gin.Context) {
 	favoriteID := ctx.Param("id")
 	err := fc.favoriteService.RemoveFavourite(favoriteID)
 	if err != nil {

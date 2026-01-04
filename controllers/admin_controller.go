@@ -18,6 +18,13 @@ type AdminController struct {
 	orderService   services.OrderService
 }
 
+func AdminControllerSingleton() *AdminController {
+	if adminController == nil {
+		InitAdminController()
+	}
+	return adminController
+}
+
 var adminController *AdminController
 
 func NewAdminController(productService services.ProductService, orderService services.OrderService) *AdminController {
