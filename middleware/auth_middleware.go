@@ -39,14 +39,12 @@ func AuthMiddleware() gin.HandlerFunc {
 
 func AdminAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		role := c.GetString("role") // Extracted from JWT in your auth middleware
-
-		if role != "admin" {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied. Admin only."})
+		isAdmin, exists := c.Get("is_admin")
+		if !exists || !isAdmin.(bool) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
 			c.Abort()
 			return
 		}
-
 		c.Next()
 	}
 }
