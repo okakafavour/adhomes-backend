@@ -24,9 +24,6 @@ func NewOrderRepository() *OrderRepository {
 
 func (r *OrderRepository) CreateOrder(order models.Order) (models.Order, error) {
 	order.ID = primitive.NewObjectID()
-	order.CreatedAt = time.Now()
-	order.UpdatedAt = time.Now()
-
 	_, err := r.collection.InsertOne(context.Background(), order)
 	return order, err
 }
@@ -79,20 +76,19 @@ func (r *OrderRepository) FindAll() ([]models.Order, error) {
 func (r *OrderRepository) UpdateOrder(id string, order models.Order) (models.Order, error) {
 	oid, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return models.Order{}, errors.New("Invalid order id")
+		return models.Order{}, errors.New("invalid order id")
 	}
-
-	order.UpdatedAt = time.Now()
 
 	update := bson.M{
 		"$set": bson.M{
-			"user_id":          order.UserID,
+			"customer_name":    order.CustomerName,
+			"customer_email":   order.CustomerEmail,
+			"customer_phone":   order.CustomerPhone,
+			"delivery_type":    order.DeliveryType,
+			"shipping_address": order.ShippingAddress,
 			"items":            order.Items,
-			"payment_status":   order.PaymentStatus,
-			"delivery_address": order.DeliveryAddress,
-			"total_price":      order.Total,
-			"status":           order.OrderStatus,
-			"updated_at":       order.UpdatedAt,
+			"total_amount":     order.TotalAmount,
+			"status":           order.Status,
 		},
 	}
 
@@ -101,7 +97,7 @@ func (r *OrderRepository) UpdateOrder(id string, order models.Order) (models.Ord
 		return models.Order{}, err
 	}
 	if result.MatchedCount == 0 {
-		return models.Order{}, errors.New("Order not found")
+		return models.Order{}, errors.New("order not found")
 	}
 
 	order.ID = oid

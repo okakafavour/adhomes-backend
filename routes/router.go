@@ -1,85 +1,96 @@
 package routes
 
 import (
-	"adhomes-backend/config"
 	"adhomes-backend/controllers"
+	"adhomes-backend/middleware"
 	"adhomes-backend/services_impl"
-	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRoutes(router *gin.Engine) {
-	// -----------------------------
-	// Initialize all controllers
-	// -----------------------------
-	controllers.InitUserController()
-	controllers.InitAdminController()
-	controllers.InitCartController()
-	controllers.InitDeliveryController()
-	controllers.InitFavouriteController()
-	controllers.InitOrderController()
-	controllers.InitProductController()
+func SetupRoutes(r *gin.Engine) {
+	// ==========================
+	// SERVICES
+	// ==========================
+	userService := services_impl.NewUserService()
+	productService := services_impl.NewProductService()
+	orderService := services_impl.NewOrderService()
+	favouriteService := services_impl.NewFavoriteService()
+	paymentService := services_impl.NewPaymentService() // Payment service
 
-	// Payment Service & Controller
-	paymentService := &services_impl.PaymentServiceImpl{
-		PaymentCollection: config.DB.Collection("payments"),
-		OrderCollection:   config.DB.Collection("orders"),
-		HttpClient:        &http.Client{Timeout: 10 * time.Second},
-	}
-	walletService := services_impl.NewWalletService()
-	paymentController := controllers.NewPaymentController(paymentService, walletService)
+	// ==========================
+	// CONTROLLERS
+	// ==========================
+	userController := controllers.NewUserController(userService)
+	productController := controllers.NewProductController(productService)
+	orderController := controllers.NewOrderController(orderService)
+	favouriteController := controllers.NewFavoriteController(favouriteService)
+	paymentController := controllers.NewPaymentController(paymentService)
 
-	// -----------------------------
-	// Public / User routes
-	// -----------------------------
-	router.POST("/signup", controllers.SignUp)
-	router.POST("/login", controllers.Login)
+	adminController := controllers.NewAdminController(
+		productService,
+		orderService,
+		userService,
+	)
 
-	router.GET("/products", controllers.GetAllProducts)
-	router.POST("/payments", paymentController.MakePayment)
+	// ==========================
+	// PUBLIC AUTH ROUTES
+	// ==========================
+	r.POST("/signup", userController.SignUp)
+	r.POST("/login", userController.Login)
+	r.POST("/admin/login", adminController.AdminLogin)
 
-	// Cart routes
-	cart := controllers.CartControllerSingleton()
-	cartRoutes := router.Group("/cart")
+	// ==========================
+	// PUBLIC PRODUCT ROUTES
+	// ==========================
+	r.GET("/products", productController.GetAllProducts)
+	r.GET("/products/:id", productController.GetProductByID)
+
+	// ==========================
+	// USER ROUTES (JWT PROTECTED)
+	// ==========================
+	userRoutes := r.Group("/user")
+	userRoutes.Use(middleware.AuthMiddleware())
 	{
-		cartRoutes.POST("/", cart.AddToCart)
-		cartRoutes.GET("/", cart.GetCartItems)
-		cartRoutes.DELETE("/:id", cart.RemoveFromCart)
+		// Orders
+		userRoutes.POST("/orders", orderController.CreateOrder)
+		userRoutes.GET("/orders/:id", orderController.GetOrderByID)
+		userRoutes.GET("/orders", orderController.GetOrdersByUserID)
+		userRoutes.DELETE("/orders/:id", orderController.DeleteOrder)
+		userRoutes.PUT("/orders/:id", orderController.UpdateOrder)
+		userRoutes.PUT("/orders/:id/status", orderController.UpdateOrderStatus)
+
+		// Favourites
+		userRoutes.POST("/favourite", favouriteController.AddFavorite)
+		userRoutes.GET("/favourite", favouriteController.GetFavorites)
+		userRoutes.DELETE("/favourite/:id", favouriteController.RemoveFavorite)
+
+		// Payments
+		userRoutes.POST("/payments", paymentController.MakePayment)
 	}
 
-	// Favourite routes
-	fav := controllers.FavouriteControllerSingleton()
-	favRoutes := router.Group("/favourites")
+	// ==========================
+	// ADMIN ROUTES (JWT + Admin Middleware)
+	// ==========================
+	admin := r.Group("/admin")
+	admin.Use(middleware.AuthMiddleware(), middleware.AdminAuth())
 	{
-		favRoutes.POST("/", fav.AddToFavourites)
-		favRoutes.GET("/", fav.GetFavourites)
-		favRoutes.DELETE("/:id", fav.RemoveFavourite)
-	}
+		// Product Management
+		admin.POST("/products", adminController.AddProduct)
+		admin.PUT("/products/:id", adminController.UpdateProduct)
+		admin.DELETE("/products/:id", adminController.DeleteProduct)
+		admin.GET("/products", adminController.GetAllProducts)
+		admin.GET("/products/:id", adminController.GetProductByID)
 
-	// Delivery routes
-	delivery := controllers.DeliveryControllerSingleton()
-	deliveryRoutes := router.Group("/delivery")
-	{
-		deliveryRoutes.POST("/", delivery.ScheduleDelivery)
-		deliveryRoutes.GET("/", delivery.GetAllDeliveries)
-	}
+		// Order Management
+		admin.GET("/orders", adminController.GetAllOrders)
+		admin.PUT("/orders/:id/approve", adminController.ApproveOrder)
+		admin.PUT("/orders/:id/cancel", adminController.CancelOrder)
 
-	// -----------------------------
-	// Admin routes
-	// -----------------------------
-	admin := controllers.AdminControllerSingleton()
-	adminRoutes := router.Group("/admin")
-	{
-		// Product management
-		adminRoutes.POST("/products", admin.AddProduct)
-		adminRoutes.PUT("/products/:id", admin.UpdateProduct)
-		adminRoutes.DELETE("/products/:id", admin.DeleteProduct)
-		adminRoutes.GET("/products", admin.GetAllProducts)
-
-		// Order management
-		adminRoutes.GET("/orders", admin.GetAllOrders)
-		adminRoutes.PUT("/orders/:id/status", admin.UpdateOrderStatus)
+		// User Management
+		admin.GET("/users", adminController.GetAllUsers)
+		admin.PUT("/users/:id/deactivate", adminController.DeactivateUser)
+		admin.PUT("/users/:id/activate", adminController.ActivateUser)
+		admin.DELETE("/users/:id", adminController.DeleteUser)
 	}
 }

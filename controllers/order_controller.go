@@ -5,38 +5,34 @@ import (
 
 	"adhomes-backend/models"
 	"adhomes-backend/services"
-	"adhomes-backend/services_impl"
 
 	"github.com/gin-gonic/gin"
 )
 
-var orderService services.OrderService
+type OrderController struct {
+	orderService services.OrderService
+}
 
-// -----------------------------
-// Init
-// -----------------------------
-func InitOrderController() {
-	orderService = services_impl.NewOrderService()
+func NewOrderController(orderService services.OrderService) *OrderController {
+	return &OrderController{
+		orderService: orderService,
+	}
 }
 
 // -----------------------------
 // Create Order
 // -----------------------------
-func CreateOrder(c *gin.Context) {
+func (oc *OrderController) CreateOrder(c *gin.Context) {
 	var order models.Order
 
 	if err := c.ShouldBindJSON(&order); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request format",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
 
-	createdOrder, err := orderService.CreateOrder(order)
+	createdOrder, err := oc.orderService.CreateOrder(order)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -49,10 +45,10 @@ func CreateOrder(c *gin.Context) {
 // -----------------------------
 // Get Order By ID
 // -----------------------------
-func GetOrderByID(c *gin.Context) {
+func (oc *OrderController) GetOrderByID(c *gin.Context) {
 	id := c.Param("id")
 
-	order, err := orderService.GetOrderByID(id)
+	order, err := oc.orderService.GetOrderByID(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": err.Error(),
@@ -66,10 +62,10 @@ func GetOrderByID(c *gin.Context) {
 // -----------------------------
 // Get Orders By User ID
 // -----------------------------
-func GetOrdersByUserID(c *gin.Context) {
+func (oc *OrderController) GetOrdersByUserID(c *gin.Context) {
 	userID := c.Param("user_id")
 
-	orders, err := orderService.GetOrdersByUserID(userID)
+	orders, err := oc.orderService.GetOrdersByUserID(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
@@ -83,10 +79,10 @@ func GetOrdersByUserID(c *gin.Context) {
 // -----------------------------
 // Delete Order
 // -----------------------------
-func DeleteOrder(c *gin.Context) {
+func (oc *OrderController) DeleteOrder(c *gin.Context) {
 	id := c.Param("id")
 
-	if err := orderService.DeleteOrder(id); err != nil {
+	if err := oc.orderService.DeleteOrder(id); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": err.Error(),
 		})
@@ -101,7 +97,7 @@ func DeleteOrder(c *gin.Context) {
 // -----------------------------
 // Update Order (full update)
 // -----------------------------
-func UpdateOrder(c *gin.Context) {
+func (oc *OrderController) UpdateOrder(c *gin.Context) {
 	id := c.Param("id")
 
 	var input models.Order
@@ -112,7 +108,7 @@ func UpdateOrder(c *gin.Context) {
 		return
 	}
 
-	updatedOrder, err := orderService.UpdateOrder(id, input)
+	updatedOrder, err := oc.orderService.UpdateOrder(id, input)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
@@ -129,7 +125,7 @@ func UpdateOrder(c *gin.Context) {
 // -----------------------------
 // Update Order Status ONLY
 // -----------------------------
-func UpdateOrderStatus(c *gin.Context) {
+func (oc *OrderController) UpdateOrderStatus(c *gin.Context) {
 	id := c.Param("id")
 
 	var body struct {
@@ -143,7 +139,7 @@ func UpdateOrderStatus(c *gin.Context) {
 		return
 	}
 
-	if err := orderService.UpdateOrderStatus(id, body.Status); err != nil {
+	if err := oc.orderService.UpdateOrderStatus(id, body.Status); err != nil {
 		switch err.Error() {
 		case "invalid order ID":
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

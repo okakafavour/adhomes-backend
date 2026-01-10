@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"adhomes-backend/services"
-	"adhomes-backend/services_impl"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,24 +12,10 @@ type FavouriteController struct {
 	favoriteService services.FavouriteService
 }
 
-var favouriteController *FavouriteController
-
-func FavouriteControllerSingleton() *FavouriteController {
-	if adminController == nil {
-		InitFavouriteController()
-	}
-	return favouriteController
-}
-
 func NewFavoriteController(service services.FavouriteService) *FavouriteController {
 	return &FavouriteController{
 		favoriteService: service,
 	}
-}
-
-func InitFavouriteController() {
-	favService := services_impl.NewFavoriteService()
-	favouriteController = NewFavoriteController(favService)
 }
 
 func (fc *FavouriteController) AddFavorite(ctx *gin.Context) {

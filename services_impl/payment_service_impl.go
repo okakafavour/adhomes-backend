@@ -1,155 +1,95 @@
 package services_impl
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"errors"
-	"net/http"
-	"os"
-	"time"
-
 	"adhomes-backend/models"
 	"adhomes-backend/repositories"
 	"adhomes-backend/services"
+	"context"
+	"errors"
 
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type HTTPClient interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
-type PaymentServiceImpl struct {
+type paymentServiceImpl struct {
 	paymentRepo *repositories.PaymentRepository
-	httpClient  HTTPClient
+	orderRepo   *repositories.OrderRepository
+	walletRepo  *repositories.WalletRepository
 }
 
-// ------------------------
-// Constructor
-// ------------------------
+// NewPaymentService creates a new PaymentService
 func NewPaymentService() services.PaymentService {
-	return &PaymentServiceImpl{
+	return &paymentServiceImpl{
 		paymentRepo: repositories.NewPaymentRepository(),
-		httpClient:  &http.Client{Timeout: 10 * time.Second},
+		orderRepo:   repositories.NewOrderRepository(),
+		walletRepo:  repositories.NewWalletRepository(),
 	}
 }
 
-// ------------------------
-// Initialize Payment (Paystack)
-// ------------------------
-func (s *PaymentServiceImpl) InitializePayment(
-	orderID,
-	userID string,
-	amount float64,
-	email string,
-) (*models.Payment, string, error) {
+// MakePayment handles wallet or paystack payment
+func (s *paymentServiceImpl) MakePayment(req models.PaymentRequest) (models.Payment, string, error) {
+	ctx := context.Background()
 
-	if amount <= 0 {
-		return nil, "", errors.New("invalid amount")
+	// 1️⃣ Validate order
+	order, err := s.orderRepo.FindOrderByID(req.OrderID)
+	if err != nil {
+		return models.Payment{}, "", err
 	}
 
-	reference := uuid.New().String()
+	// Ensure the order belongs to the user
+	if order.CustomerEmail != req.UserID {
+		return models.Payment{}, "", errors.New("order does not belong to user")
+	}
 
+	// Ensure the amount matches
+	if order.TotalAmount != req.Amount {
+		return models.Payment{}, "", errors.New("amount does not match order total")
+	}
+
+	// Create a new payment record
 	payment := models.Payment{
 		ID:        primitive.NewObjectID(),
-		UserID:    userID,
-		OrderID:   orderID,
-		Amount:    amount,
-		Reference: reference,
-		Gateway:   "paystack",
+		UserID:    req.UserID,
+		OrderID:   req.OrderID,
+		Amount:    req.Amount,
+		Email:     req.Email,
+		Method:    req.PaymentMethod,
 		Status:    "pending",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		Reference: primitive.NewObjectID().Hex(),
 	}
 
-	ctx := context.Background()
+	// 2️⃣ Wallet payment
+	if req.PaymentMethod == "wallet" {
+		wallet, err := s.walletRepo.FindByUserID(ctx, req.UserID)
+		if err != nil {
+			return models.Payment{}, "", err
+		}
 
-	if err := s.paymentRepo.Create(ctx, payment); err != nil {
-		return nil, "", err
+		if wallet.Balance < req.Amount {
+			return models.Payment{}, "", errors.New("insufficient wallet balance")
+		}
+
+		_, err = s.walletRepo.DecreaseBalance(ctx, req.UserID, req.Amount)
+		if err != nil {
+			return models.Payment{}, "", err
+		}
+
+		payment.Status = "success"
+		if err := s.orderRepo.UpdateOrderStatus(req.OrderID, "paid"); err != nil {
+			return models.Payment{}, "", err
+		}
+
+		// Save payment
+		p, err := s.paymentRepo.Create(payment)
+		return p, "", err
 	}
 
-	reqBody := map[string]interface{}{
-		"email":     email,
-		"amount":    int(amount * 100),
-		"reference": reference,
+	// 3️⃣ Paystack payment (mocked)
+	if req.PaymentMethod == "paystack" {
+		paymentURL := "https://paystack.com/pay/" + payment.Reference
+
+		p, err := s.paymentRepo.Create(payment)
+		return p, paymentURL, err
 	}
 
-	bodyBytes, _ := json.Marshal(reqBody)
-
-	req, _ := http.NewRequest(
-		"POST",
-		"https://api.paystack.co/transaction/initialize",
-		bytes.NewBuffer(bodyBytes),
-	)
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+os.Getenv("PAYSTACK_SECRET_KEY"))
-
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return nil, "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, "", errors.New("failed to initialize payment")
-	}
-
-	var paystackRes struct {
-		Data struct {
-			AuthorizationURL string `json:"authorization_url"`
-		} `json:"data"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&paystackRes); err != nil {
-		return nil, "", err
-	}
-
-	return &payment, paystackRes.Data.AuthorizationURL, nil
-}
-
-// ------------------------
-// Update Payment Status (Webhook)
-// ------------------------
-func (s *PaymentServiceImpl) UpdatePaymentStatus(
-	reference string,
-	status string,
-) (*models.Payment, error) {
-
-	ctx := context.Background()
-
-	payment, err := s.paymentRepo.FindByReference(ctx, reference)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.paymentRepo.UpdateStatus(ctx, reference, status); err != nil {
-		return nil, err
-	}
-
-	if status == "success" {
-		_ = s.paymentRepo.UpdateOrderStatus(
-			ctx,
-			payment.OrderID,
-			"Processing",
-		)
-	}
-
-	payment.Status = status
-	return payment, nil
-}
-
-// ------------------------
-// Get Payment by Reference
-// ------------------------
-func (s *PaymentServiceImpl) GetPaymentByReference(
-	reference string,
-) (*models.Payment, error) {
-
-	return s.paymentRepo.FindByReference(
-		context.Background(),
-		reference,
-	)
+	return models.Payment{}, "", errors.New("invalid payment method")
 }

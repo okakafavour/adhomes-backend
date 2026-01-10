@@ -5,102 +5,143 @@ import (
 
 	"adhomes-backend/models"
 	"adhomes-backend/services"
-	"adhomes-backend/services_impl"
 
 	"github.com/gin-gonic/gin"
 )
 
-var productService services.ProductService
-
-func InitProductController() {
-	productService = services_impl.NewProductService()
+type ProductController struct {
+	productService services.ProductService
 }
 
-// CreateProduct (Admin)
-func CreateProduct(c *gin.Context) {
-	var body struct {
-		Name        string  `json:"name"`
-		Description string  `json:"description"`
-		Price       float64 `json:"price"`
-		Category    string  `json:"category"`
-		ImageURL    string  `json:"image_url"`
+func NewProductController(productService services.ProductService) *ProductController {
+	return &ProductController{
+		productService: productService,
 	}
+}
 
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+// --------------------
+// CREATE PRODUCT (ADMIN)
+// --------------------
+func (pc *ProductController) CreateProduct(c *gin.Context) {
+	var product models.Product
+
+	if err := c.ShouldBindJSON(&product); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request format",
+		})
 		return
 	}
 
-	p, err := productService.AddProduct(
-		body.Name,
-		body.Description,
-		body.Price,
-		body.Category,
-		body.ImageURL,
-	)
+	createdProduct, err := pc.productService.AddProduct(&product)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to create product",
+		})
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Product created successfully",
-		"product": p,
+		"product": createdProduct,
 	})
 }
 
-// Update Product
-func UpdateProduct(c *gin.Context) {
+// --------------------
+// UPDATE PRODUCT
+// --------------------
+func (pc *ProductController) UpdateProduct(c *gin.Context) {
 	id := c.Param("id")
 
 	var product models.Product
 	if err := c.ShouldBindJSON(&product); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request format",
+		})
 		return
 	}
 
-	p, err := productService.UpdateProduct(id, product)
+	updatedProduct, err := pc.productService.UpdateProduct(id, &product)
 	if err != nil {
 		if err.Error() == "product not found" {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": err.Error(),
+			})
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to update product",
+		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "product updated",
-		"product": p,
+		"message": "Product updated successfully",
+		"product": updatedProduct,
 	})
 }
 
-// Delete Product
-func DeleteProduct(c *gin.Context) {
+// --------------------
+// DELETE PRODUCT
+// --------------------
+func (pc *ProductController) DeleteProduct(c *gin.Context) {
 	id := c.Param("id")
 
-	err := productService.DeleteProduct(id)
-	if err != nil {
+	if err := pc.productService.DeleteProduct(id); err != nil {
 		if err.Error() == "product not found" {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": err.Error(),
+			})
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to delete product",
+		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "product deleted"})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Product deleted successfully",
+	})
 }
 
-// Get All Products
-func GetAllProducts(c *gin.Context) {
-	products, err := productService.GetAllProducts()
+// --------------------
+// GET ALL PRODUCTS (PUBLIC)
+// --------------------
+func (pc *ProductController) GetAllProducts(c *gin.Context) {
+	products, err := pc.productService.GetAllProducts()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch products"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to fetch products",
+		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"products": products,
+	})
+}
+
+// --------------------
+// GET PRODUCT BY ID (PUBLIC)
+// --------------------
+func (pc *ProductController) GetProductByID(c *gin.Context) {
+	id := c.Param("id")
+
+	product, err := pc.productService.GetProductByID(id)
+	if err != nil {
+		if err.Error() == "product not found" {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to fetch product",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"product": product,
 	})
 }

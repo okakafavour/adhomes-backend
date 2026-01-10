@@ -96,3 +96,21 @@ func (r *ProductRepository) FindAll() ([]models.Product, error) {
 	}
 	return products, nil
 }
+
+func (r *ProductRepository) FindByID(id string) (models.Product, error) {
+	oid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return models.Product{}, errors.New("invalid product id")
+	}
+
+	var product models.Product
+	err = r.collection.FindOne(context.Background(), bson.M{"_id": oid}).Decode(&product)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return models.Product{}, errors.New("product not found")
+		}
+		return models.Product{}, err
+	}
+
+	return product, nil
+}

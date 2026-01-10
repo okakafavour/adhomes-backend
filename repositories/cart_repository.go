@@ -12,17 +12,17 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type cartRepository struct {
+type CartRepository struct {
 	collection *mongo.Collection
 }
 
-func NewCartRepository() *cartRepository {
-	return &cartRepository{
+func NewCartRepository() *CartRepository {
+	return &CartRepository{
 		collection: config.GetCollection("carts"),
 	}
 }
 
-func (r *cartRepository) CreateCart(cart models.Cart) (models.Cart, error) {
+func (r *CartRepository) CreateCart(cart models.Cart) (models.Cart, error) {
 	cart.ID = primitive.NewObjectID()
 	cart.CreatedAt = time.Now()
 	cart.UpdatedAt = time.Now()
@@ -31,14 +31,14 @@ func (r *cartRepository) CreateCart(cart models.Cart) (models.Cart, error) {
 	return cart, err
 }
 
-func (r *cartRepository) FindCartByUserID(userID string) (models.Cart, error) {
+func (r *CartRepository) FindCartByUserID(userID string) (models.Cart, error) {
 	var cart models.Cart
 	err := r.collection.FindOne(context.Background(), bson.M{"user_id": userID}).Decode(&cart)
 
 	return cart, err
 }
 
-func (r *cartRepository) UpdateCart(id string, cart models.Cart) (models.Cart, error) {
+func (r *CartRepository) UpdateCart(id string, cart models.Cart) (models.Cart, error) {
 	oid, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return models.Cart{}, errors.New("invalid cart ID")
@@ -70,7 +70,7 @@ func (r *cartRepository) UpdateCart(id string, cart models.Cart) (models.Cart, e
 	return cart, nil
 }
 
-func (r *cartRepository) DeleteCart(id string) error {
+func (r *CartRepository) DeleteCart(id string) error {
 	oid, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return errors.New("invalid cart ID")

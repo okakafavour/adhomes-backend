@@ -9,6 +9,7 @@ import (
 	"adhomes-backend/services"
 	"adhomes-backend/utils"
 
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -23,9 +24,10 @@ func NewUserService() services.UserService {
 	}
 }
 
-// ------------------
-// Register
-// ------------------
+//
+// ==================== AUTH ====================
+//
+
 func (s *userServiceImpl) Register(user models.User) error {
 	exists, err := s.userRepo.EmailExists(user.Email)
 	if err != nil {
@@ -40,16 +42,15 @@ func (s *userServiceImpl) Register(user models.User) error {
 		return err
 	}
 
+	user.ID = primitive.NewObjectID()
 	user.Password = string(hashed)
+	user.IsActive = true
 	user.CreatedAt = time.Now()
 	user.UpdatedAt = time.Now()
 
 	return s.userRepo.CreateUser(user)
 }
 
-// ------------------
-// Login
-// ------------------
 func (s *userServiceImpl) Login(email, password string) (string, error) {
 	user, err := s.userRepo.FindUserByEmail(email)
 	if err != nil {
@@ -59,14 +60,38 @@ func (s *userServiceImpl) Login(email, password string) (string, error) {
 		return "", err
 	}
 
+	if !user.IsActive {
+		return "", errors.New("account is deactivated")
+	}
+
 	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)) != nil {
 		return "", errors.New("invalid email or password")
 	}
 
-	token, err := utils.GenerateToken(user.Email)
+	token, err := utils.GenerateToken(user.Email, false)
 	if err != nil {
 		return "", err
 	}
 
 	return token, nil
+}
+
+//
+// ==================== ADMIN ====================
+//
+
+func (s *userServiceImpl) GetAllUsers() ([]models.User, error) {
+	return s.userRepo.FindAll()
+}
+
+func (s *userServiceImpl) DeactivateUser(userID string) error {
+	return s.userRepo.UpdateStatus(userID, false)
+}
+
+func (s *userServiceImpl) ActivateUser(userID string) error {
+	return s.userRepo.UpdateStatus(userID, true)
+}
+
+func (s *userServiceImpl) DeleteUser(userID string) error {
+	return s.userRepo.DeleteUser(userID)
 }

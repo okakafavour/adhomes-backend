@@ -11,56 +11,35 @@ import (
 
 type PaymentController struct {
 	paymentService services.PaymentService
-	walletService  services.WalletService
 }
 
-func NewPaymentController(paymentService services.PaymentService, walletService services.WalletService) *PaymentController {
+func NewPaymentController(paymentService services.PaymentService) *PaymentController {
 	return &PaymentController{
 		paymentService: paymentService,
-		walletService:  walletService,
 	}
 }
 
-func (pc *PaymentController) MakePayment(ctx *gin.Context) {
+func (pc *PaymentController) MakePayment(c *gin.Context) {
 	var req models.PaymentRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "invalid request body",
-			"error":   err.Error(),
-		})
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Optional: Deduct wallet if available
-	wallet, err := pc.walletService.GetWalletByUserID(ctx, req.UserID)
-	if err == nil && wallet.Balance >= req.Amount {
-		_, err = pc.walletService.DecreaseBalance(ctx, req.UserID, req.Amount)
-		if err != nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{
-				"message": "failed to deduct wallet balance",
-				"error":   err.Error(),
-			})
-			return
-		}
-	}
-
-	// Initialize Paystack payment
-	payment, paymentURL, err := pc.paymentService.InitializePayment(
-		req.OrderID,
-		req.UserID,
-		req.Amount,
-		req.Email,
-	)
+	payment, paymentURL, err := pc.paymentService.MakePayment(req)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": "failed to initialize payment",
-			"error":   err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, gin.H{
-		"payment":     payment,
-		"payment_url": paymentURL,
-	})
+	response := gin.H{
+		"payment": payment,
+	}
+
+	if paymentURL != "" {
+		response["payment_url"] = paymentURL
+	}
+
+	c.JSON(http.StatusCreated, response)
 }

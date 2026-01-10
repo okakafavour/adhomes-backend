@@ -19,7 +19,7 @@ func NewFavoriteService() services.FavouriteService {
 }
 
 func (s *FavouriteServiceImpl) AddFavourite(userID, productID string) (*models.Favourite, error) {
-	exists, err := s.favRepo.Exists(userID, productID)
+	exists, err := s.favRepo.Exits(userID, productID)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +27,7 @@ func (s *FavouriteServiceImpl) AddFavourite(userID, productID string) (*models.F
 		return nil, errors.New("product already in favorites")
 	}
 
-	return s.favRepo.Create(userID, productID)
+	return s.favRepo.CreateFavourite(userID, productID)
 }
 
 func (s *FavouriteServiceImpl) GetFavourites(userID string) ([]*models.Favourite, error) {

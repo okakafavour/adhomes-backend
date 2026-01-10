@@ -1,0 +1,15 @@
+# Environment variables
+.env
+
+# Binaries
+*.exe
+*.out
+*.bin
+adhomes-backend
+# Vendor directory (if using Go modules)
+vendor/
+
+# IDE/editor files
+.vscode/
+.idea/
+*.swp

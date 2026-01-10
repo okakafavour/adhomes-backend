@@ -3,32 +3,31 @@ package controllers
 import (
 	"adhomes-backend/models"
 	"adhomes-backend/services"
-	"adhomes-backend/services_impl"
 
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
-var cartService services.CartService
-
-func InitCartController() {
-	cartService = services_impl.NewCartService()
+type CartController struct {
+	cartService services.CartService
 }
 
-func CartControllerSingleton() services.CartService {
-	InitCartController()
-	return cartService
+func NewCartController(CartService services.CartService) *CartController {
+	return &CartController{
+		cartService: CartService,
+	}
+
 }
 
-func CreateCart(c *gin.Context) {
+func (ca *CartController) CreateCart(c *gin.Context) {
 	var cart models.Cart
 	if err := c.ShouldBindJSON(&cart); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	created, err := cartService.CreateCart(cart)
+	created, err := ca.cartService.CreateCart(cart)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create cart"})
 		return
@@ -40,9 +39,9 @@ func CreateCart(c *gin.Context) {
 	})
 }
 
-func GetCart(c *gin.Context) {
+func (ca *CartController) GetCart(c *gin.Context) {
 	userID := c.Param("user_id")
-	cart, err := cartService.GetCartByUserID(userID)
+	cart, err := ca.cartService.GetCartByUserID(userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "cart not found"})
 		return
@@ -50,7 +49,7 @@ func GetCart(c *gin.Context) {
 	c.JSON(http.StatusOK, cart)
 }
 
-func UpdateCart(c *gin.Context) {
+func (ca *CartController) UpdateCart(c *gin.Context) {
 	id := c.Param("id")
 	var cart models.Cart
 	if err := c.ShouldBindJSON(&cart); err != nil {
@@ -58,7 +57,7 @@ func UpdateCart(c *gin.Context) {
 		return
 	}
 
-	updated, err := cartService.UpdateCart(id, cart)
+	updated, err := ca.cartService.UpdateCart(id, cart)
 	if err != nil {
 		if err.Error() == "cart not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -74,9 +73,9 @@ func UpdateCart(c *gin.Context) {
 	})
 }
 
-func DeleteCart(c *gin.Context) {
+func (ca *CartController) DeleteCart(c *gin.Context) {
 	id := c.Param("id")
-	err := cartService.DeleteCart(id)
+	err := ca.cartService.DeleteCart(id)
 	if err != nil {
 		if err.Error() == "cart not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
