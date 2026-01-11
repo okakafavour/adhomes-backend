@@ -3,6 +3,8 @@ package main
 import (
 	"adhomes-backend/config"
 	"adhomes-backend/routes"
+	"adhomes-backend/utils"
+	"log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -14,6 +16,11 @@ func main() {
 
 	// Connect to MongoDB
 	config.ConnectDB()
+
+	// Initialize Cloudinary
+	if err := utils.InitCloudinary(); err != nil {
+		log.Fatal(err)
+	}
 
 	// Create Gin router
 	router := gin.Default()

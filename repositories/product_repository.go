@@ -1,11 +1,11 @@
 package repositories
 
 import (
-	"adhomes-backend/config"
-	"adhomes-backend/models"
 	"context"
 	"errors"
 	"time"
+
+	"adhomes-backend/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -16,70 +16,59 @@ type ProductRepository struct {
 	collection *mongo.Collection
 }
 
-func NewProductRepository() *ProductRepository {
-	return &ProductRepository{
-		collection: config.GetCollection("products"),
-	}
+func NewProductRepository(collection *mongo.Collection) *ProductRepository {
+	return &ProductRepository{collection}
 }
 
-func (r *ProductRepository) CreateProduct(product models.Product) (models.Product, error) {
-	product.ID = primitive.NewObjectID()
+// CREATE
+func (r *ProductRepository) Create(product models.Product) (models.Product, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	product.CreatedAt = time.Now()
 	product.UpdatedAt = time.Now()
 
-	_, err := r.collection.InsertOne(context.Background(), product)
-	if err != nil {
-		return models.Product{}, err
-	}
-	return product, nil
+	_, err := r.collection.InsertOne(ctx, product)
+	return product, err
 }
 
-func (r *ProductRepository) UpdateProduct(id string, product models.Product) (models.Product, error) {
-	oid, err := primitive.ObjectIDFromHex(id)
+// UPDATE (PARTIAL)
+func (r *ProductRepository) UpdateFields(
+	id primitive.ObjectID,
+	update bson.M,
+) (*models.Product, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if len(update) == 0 {
+		return nil, errors.New("no fields to update")
+	}
+
+	_, err := r.collection.UpdateOne(
+		ctx,
+		bson.M{"_id": id},
+		bson.M{"$set": update},
+	)
 	if err != nil {
-		return models.Product{}, errors.New("Invalid product id")
+		return nil, err
 	}
 
-	product.UpdatedAt = time.Now()
-
-	update := bson.M{
-		"$set": bson.M{
-			"name":        product.Name,
-			"description": product.Description,
-			"price":       product.Price,
-			"category":    product.Category,
-			"image_url":   product.ImageURL,
-			"updated_at":  product.UpdatedAt,
-		},
-	}
-
-	result, err := r.collection.UpdateOne(context.Background(), bson.M{"_id": oid}, update)
-	if err != nil {
-		return models.Product{}, err
-	}
-	if result.MatchedCount == 0 {
-		return models.Product{}, errors.New("Product not found")
-	}
-	product.ID = oid
-	return product, nil
+	var product models.Product
+	err = r.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&product)
+	return &product, err
 }
 
-func (r *ProductRepository) DeleteProduct(id string) error {
-	oid, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return errors.New("Invalid product id")
-	}
+// DELETE
+func (r *ProductRepository) Delete(id primitive.ObjectID) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	result, err := r.collection.DeleteOne(context.Background(), bson.M{"_id": oid})
-	if err != nil {
-		return err
-	}
-	if result.DeletedCount == 0 {
-		return errors.New("Product not found")
-	}
-	return nil
+	_, err := r.collection.DeleteOne(ctx, bson.M{"_id": id})
+	return err
 }
 
+// READ
 func (r *ProductRepository) FindAll() ([]models.Product, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -91,26 +80,15 @@ func (r *ProductRepository) FindAll() ([]models.Product, error) {
 	defer cursor.Close(ctx)
 
 	var products []models.Product
-	if err = cursor.All(ctx, &products); err != nil {
-		return nil, err
-	}
-	return products, nil
+	err = cursor.All(ctx, &products)
+	return products, err
 }
 
-func (r *ProductRepository) FindByID(id string) (models.Product, error) {
-	oid, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return models.Product{}, errors.New("invalid product id")
-	}
+func (r *ProductRepository) FindByID(id primitive.ObjectID) (*models.Product, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
 	var product models.Product
-	err = r.collection.FindOne(context.Background(), bson.M{"_id": oid}).Decode(&product)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return models.Product{}, errors.New("product not found")
-		}
-		return models.Product{}, err
-	}
-
-	return product, nil
+	err := r.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&product)
+	return &product, err
 }

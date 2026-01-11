@@ -6,7 +6,6 @@ import (
 
 	"adhomes-backend/models"
 	"adhomes-backend/repositories"
-	"adhomes-backend/services"
 	"adhomes-backend/utils"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -18,9 +17,9 @@ type userServiceImpl struct {
 	userRepo *repositories.UserRepository
 }
 
-func NewUserService() services.UserService {
+func NewUserService(userRepo *repositories.UserRepository) *userServiceImpl {
 	return &userServiceImpl{
-		userRepo: repositories.NewUserRepository(),
+		userRepo: userRepo,
 	}
 }
 
@@ -60,7 +59,7 @@ func (s *userServiceImpl) Login(email, password string) (string, error) {
 		return "", err
 	}
 
-	if !user.IsActive {
+	if user.IsActive == false {
 		return "", errors.New("account is deactivated")
 	}
 

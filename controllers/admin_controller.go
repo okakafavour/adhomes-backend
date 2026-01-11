@@ -4,6 +4,7 @@ import (
 	"adhomes-backend/models"
 	"adhomes-backend/services"
 	"adhomes-backend/utils"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -61,43 +62,103 @@ func (ac *AdminController) AdminLogin(c *gin.Context) {
 }
 
 // === Product Management ===
-func (ac *AdminController) AddProduct(ctx *gin.Context) {
-	var product models.Product
+func (ac *AdminController) AddProduct(c *gin.Context) {
+	name := c.PostForm("name")
+	description := c.PostForm("description")
+	category := c.PostForm("category")
 
-	if err := ctx.ShouldBindJSON(&product); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product data"})
+	priceStr := c.PostForm("price")
+	stockStr := c.PostForm("stock")
+
+	if name == "" || priceStr == "" || stockStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name, price, and stock are required"})
 		return
 	}
 
-	created, err := ac.productService.AddProduct(&product)
+	var price float64
+	var stock int
+	fmt.Sscanf(priceStr, "%f", &price)
+	fmt.Sscanf(stockStr, "%d", &stock)
+
+	var imageURL, imageID string
+
+	file, err := c.FormFile("image")
+	if err == nil {
+		url, publicID, err := utils.UploadToCloudinary(file)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "image upload failed"})
+			return
+		}
+		imageURL = url
+		imageID = publicID
+	}
+
+	product := models.Product{
+		Name:        name,
+		Description: description,
+		Category:    category,
+		Price:       price,
+		Stock:       stock,
+		ImageURL:    imageURL,
+		ImageID:     imageID,
+	}
+
+	createdProduct, err := ac.productService.AddProduct(&product)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, gin.H{
-		"message": "Product created successfully",
-		"product": created,
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "product created successfully",
+		"product": createdProduct,
 	})
 }
 
-func (ac *AdminController) UpdateProduct(ctx *gin.Context) {
-	id := ctx.Param("id")
+func (ac *AdminController) UpdateProduct(c *gin.Context) {
+	id := c.Param("id")
+	update := make(map[string]interface{})
 
-	var product models.Product
-	if err := ctx.ShouldBindJSON(&product); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product data"})
-		return
+	if v := c.PostForm("name"); v != "" {
+		update["name"] = v
+	}
+	if v := c.PostForm("price"); v != "" {
+		var price float64
+		fmt.Sscanf(v, "%f", &price)
+		update["price"] = price
+	}
+	if v := c.PostForm("stock"); v != "" {
+		var stock int
+		fmt.Sscanf(v, "%d", &stock)
+		update["stock"] = stock
 	}
 
-	updated, err := ac.productService.UpdateProduct(id, &product)
+	file, err := c.FormFile("image")
+	if err == nil {
+		product, _ := ac.productService.GetProductByID(id)
+
+		url, publicID, err := utils.UploadToCloudinary(file)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "upload failed"})
+			return
+		}
+
+		update["image_url"] = url
+		update["image_id"] = publicID
+
+		if product.ImageID != "" {
+			_ = utils.DeleteImageFromCloudinary(product.ImageID)
+		}
+	}
+
+	updated, err := ac.productService.UpdateProduct(id, update)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update product"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"message": "Product updated successfully",
+	c.JSON(http.StatusOK, gin.H{
+		"message": "product updated",
 		"product": updated,
 	})
 }

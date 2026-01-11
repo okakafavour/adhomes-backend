@@ -5,16 +5,15 @@ import (
 
 	"adhomes-backend/models"
 	"adhomes-backend/repositories"
-	"adhomes-backend/services"
 )
 
 type FavouriteServiceImpl struct {
 	favRepo *repositories.FavouriteRepository
 }
 
-func NewFavoriteService() services.FavouriteService {
+func NewFavouriteService(favRepo *repositories.FavouriteRepository) *FavouriteServiceImpl {
 	return &FavouriteServiceImpl{
-		favRepo: repositories.NewFavouriteRepository(),
+		favRepo: favRepo,
 	}
 }
 

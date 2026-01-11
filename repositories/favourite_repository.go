@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"adhomes-backend/config"
 	"adhomes-backend/models"
 	"context"
 	"errors"
@@ -16,10 +15,8 @@ type FavouriteRepository struct {
 	collection *mongo.Collection
 }
 
-func NewFavouriteRepository() *FavouriteRepository {
-	return &FavouriteRepository{
-		collection: config.DB.Collection("favorites"),
-	}
+func NewFavouriteRepository(collection *mongo.Collection) *FavouriteRepository {
+	return &FavouriteRepository{collection}
 }
 
 func (r *FavouriteRepository) Exits(userID, productID string) (bool, error) {

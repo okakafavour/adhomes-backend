@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"adhomes-backend/config"
 	"adhomes-backend/models"
 	"context"
 	"time"
@@ -13,10 +12,8 @@ type PaymentRepository struct {
 	collection *mongo.Collection
 }
 
-func NewPaymentRepository() *PaymentRepository {
-	return &PaymentRepository{
-		collection: config.GetCollection("payments"),
-	}
+func NewPaymentRepository(collection *mongo.Collection) *PaymentRepository {
+	return &PaymentRepository{collection}
 }
 
 func (r *PaymentRepository) Create(payment models.Payment) (models.Payment, error) {

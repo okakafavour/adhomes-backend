@@ -52,20 +52,25 @@ func (pc *ProductController) CreateProduct(c *gin.Context) {
 func (pc *ProductController) UpdateProduct(c *gin.Context) {
 	id := c.Param("id")
 
-	var product models.Product
-	if err := c.ShouldBindJSON(&product); err != nil {
+	var input map[string]interface{}
+	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid request format",
 		})
 		return
 	}
 
-	updatedProduct, err := pc.productService.UpdateProduct(id, &product)
+	if len(input) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "No fields provided for update",
+		})
+		return
+	}
+
+	updatedProduct, err := pc.productService.UpdateProduct(id, input)
 	if err != nil {
 		if err.Error() == "product not found" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{

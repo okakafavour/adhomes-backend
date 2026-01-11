@@ -12,7 +12,9 @@ type Product struct {
 	Description string             `bson:"description" json:"description" binding:"required"`
 	Category    string             `bson:"category" json:"category" binding:"required"`
 	Price       float64            `bson:"price" json:"price" binding:"required"`
+	Stock       int                `bson:"stock" json:"stock" binding:"required"`
 	ImageURL    string             `bson:"image_url" json:"image_url"`
+	ImageID     string             `bson:"image_id" json:"image_id"`
 	CreatedAt   time.Time          `bson:"created_at" json:"created_at"`
 	UpdatedAt   time.Time          `bson:"updated_at" json:"updated_at"`
 }

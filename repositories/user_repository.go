@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"adhomes-backend/config"
 	"adhomes-backend/models"
 	"context"
 	"errors"
@@ -16,10 +15,8 @@ type UserRepository struct {
 	collection *mongo.Collection
 }
 
-func NewUserRepository() *UserRepository {
-	return &UserRepository{
-		collection: config.GetCollection("users"),
-	}
+func NewUserRepository(collection *mongo.Collection) *UserRepository {
+	return &UserRepository{collection}
 }
 
 func (r *UserRepository) EmailExists(email string) (bool, error) {

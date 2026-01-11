@@ -6,7 +6,6 @@ import (
 
 	"adhomes-backend/models"
 	"adhomes-backend/repositories"
-	"adhomes-backend/services"
 	"adhomes-backend/utils"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -17,10 +16,10 @@ type orderServiceImpl struct {
 	productRepo *repositories.ProductRepository
 }
 
-func NewOrderService() services.OrderService {
+func NewOrderService(orderRepo *repositories.OrderRepository, productRepo *repositories.ProductRepository) *orderServiceImpl {
 	return &orderServiceImpl{
-		orderRepo:   repositories.NewOrderRepository(),
-		productRepo: repositories.NewProductRepository(),
+		orderRepo:   orderRepo,
+		productRepo: productRepo,
 	}
 }
 
@@ -36,10 +35,16 @@ func (s *orderServiceImpl) CreateOrder(order models.Order) (models.Order, error)
 	var total float64
 
 	for _, item := range order.Items {
-		product, err := s.productRepo.FindByID(item.ProductID)
+		productID, err := primitive.ObjectIDFromHex(item.ProductID)
+		if err != nil {
+			return models.Order{}, errors.New("invalid product ID")
+		}
+
+		product, err := s.productRepo.FindByID(productID)
 		if err != nil {
 			return models.Order{}, err
 		}
+
 		total += product.Price * float64(item.Quantity)
 	}
 

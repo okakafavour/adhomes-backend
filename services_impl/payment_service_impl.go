@@ -3,7 +3,6 @@ package services_impl
 import (
 	"adhomes-backend/models"
 	"adhomes-backend/repositories"
-	"adhomes-backend/services"
 	"context"
 	"errors"
 
@@ -17,11 +16,11 @@ type paymentServiceImpl struct {
 }
 
 // NewPaymentService creates a new PaymentService
-func NewPaymentService() services.PaymentService {
+func NewPaymentService(paymentRepo *repositories.PaymentRepository, orderRepo *repositories.OrderRepository, walletRepo *repositories.WalletRepository) *paymentServiceImpl {
 	return &paymentServiceImpl{
-		paymentRepo: repositories.NewPaymentRepository(),
-		orderRepo:   repositories.NewOrderRepository(),
-		walletRepo:  repositories.NewWalletRepository(),
+		paymentRepo: paymentRepo,
+		orderRepo:   orderRepo,
+		walletRepo:  walletRepo,
 	}
 }
 

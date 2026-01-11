@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"adhomes-backend/config"
 	"adhomes-backend/models"
 	"context"
 	"errors"
@@ -16,10 +15,8 @@ type OrderRepository struct {
 	collection *mongo.Collection
 }
 
-func NewOrderRepository() *OrderRepository {
-	return &OrderRepository{
-		collection: config.GetCollection("orders"),
-	}
+func NewOrderRepository(collection *mongo.Collection) *OrderRepository {
+	return &OrderRepository{collection}
 }
 
 func (r *OrderRepository) CreateOrder(order models.Order) (models.Order, error) {

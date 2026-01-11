@@ -1,22 +1,43 @@
 package routes
 
 import (
+	"adhomes-backend/config"
 	"adhomes-backend/controllers"
 	"adhomes-backend/middleware"
+	"adhomes-backend/repositories"
 	"adhomes-backend/services_impl"
 
 	"github.com/gin-gonic/gin"
 )
 
 func SetupRoutes(r *gin.Engine) {
+
+	// ==========================
+	// COLLECTION
+	// ==========================
+	productCollection := config.DB.Collection("products")
+	orderCollection := config.DB.Collection("orders")
+	userCollection := config.DB.Collection("users")
+	favouriteCollection := config.DB.Collection("favourites")
+	paymentCollection := config.DB.Collection("payments")
+
+	// ==========================
+	// REPOSITORIES
+	// ==========================
+	productRepo := repositories.NewProductRepository(productCollection)
+	orderRepo := repositories.NewOrderRepository(orderCollection)
+	userRepo := repositories.NewUserRepository(userCollection)
+	favouriteRepo := repositories.NewFavoriteRepository(favouriteCollection)
+	paymentRepo := repositories.NewPaymentRepository(paymentCollection)
+
 	// ==========================
 	// SERVICES
 	// ==========================
-	userService := services_impl.NewUserService()
-	productService := services_impl.NewProductService()
-	orderService := services_impl.NewOrderService()
-	favouriteService := services_impl.NewFavoriteService()
-	paymentService := services_impl.NewPaymentService() // Payment service
+	productService := services_impl.NewProductService(productRepo)
+	orderService := services_impl.NewOrderService(orderRepo, productRepo)
+	userService := services_impl.NewUserService(userRepo)
+	favouriteService := services_impl.NewFavoriteService(favouriteRepo)
+	paymentService := services_impl.NewPaymentService(paymentRepo)
 
 	// ==========================
 	// CONTROLLERS
