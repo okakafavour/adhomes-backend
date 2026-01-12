@@ -20,6 +20,7 @@ func SetupRoutes(r *gin.Engine) {
 	userCollection := config.DB.Collection("users")
 	favouriteCollection := config.DB.Collection("favourites")
 	paymentCollection := config.DB.Collection("payments")
+	cartCollection := config.DB.Collection("carts")
 
 	// ==========================
 	// REPOSITORIES
@@ -27,8 +28,9 @@ func SetupRoutes(r *gin.Engine) {
 	productRepo := repositories.NewProductRepository(productCollection)
 	orderRepo := repositories.NewOrderRepository(orderCollection)
 	userRepo := repositories.NewUserRepository(userCollection)
-	favouriteRepo := repositories.NewFavoriteRepository(favouriteCollection)
+	favouriteRepo := repositories.NewFavouriteRepository(favouriteCollection)
 	paymentRepo := repositories.NewPaymentRepository(paymentCollection)
+	cartRepo := repositories.NewCartRepository(cartCollection)
 
 	// ==========================
 	// SERVICES
@@ -36,8 +38,9 @@ func SetupRoutes(r *gin.Engine) {
 	productService := services_impl.NewProductService(productRepo)
 	orderService := services_impl.NewOrderService(orderRepo, productRepo)
 	userService := services_impl.NewUserService(userRepo)
-	favouriteService := services_impl.NewFavoriteService(favouriteRepo)
-	paymentService := services_impl.NewPaymentService(paymentRepo)
+	favouriteService := services_impl.NewFavouriteService(favouriteRepo)
+	paymentService := services_impl.NewPaymentService(paymentRepo, orderRepo, nil)
+	cartService := services_impl.NewCartService(cartRepo, productRepo)
 
 	// ==========================
 	// CONTROLLERS
@@ -47,6 +50,7 @@ func SetupRoutes(r *gin.Engine) {
 	orderController := controllers.NewOrderController(orderService)
 	favouriteController := controllers.NewFavoriteController(favouriteService)
 	paymentController := controllers.NewPaymentController(paymentService)
+	cartController := controllers.NewCartController(cartService)
 
 	adminController := controllers.NewAdminController(
 		productService,
@@ -88,6 +92,12 @@ func SetupRoutes(r *gin.Engine) {
 
 		// Payments
 		userRoutes.POST("/payments", paymentController.MakePayment)
+
+		// Cart
+		userRoutes.POST("/cart", cartController.CreateCart)
+		userRoutes.GET("/cart/:user_id", cartController.GetCart)
+		userRoutes.PUT("/cart/:id", cartController.UpdateCart)
+		userRoutes.DELETE("/cart/:id", cartController.DeleteCart)
 	}
 
 	// ==========================

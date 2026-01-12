@@ -53,29 +53,23 @@ func UploadToCloudinary(file *multipart.FileHeader) (string, string, error) {
 }
 
 func DeleteImageFromCloudinary(publicID string) error {
-	// Initialize Cloudinary
-	cld, err := cloudinary.NewFromParams(
-		os.Getenv("CLOUDINARY_CLOUD_NAME"),
-		os.Getenv("CLOUDINARY_API_KEY"),
-		os.Getenv("CLOUDINARY_API_SECRET"),
+	if cld == nil {
+		return errors.New("cloudinary not initialized")
+	}
+
+	fmt.Println("🗑️ Deleting image from Cloudinary:", publicID)
+
+	resp, err := cld.Upload.Destroy(
+		context.Background(),
+		uploader.DestroyParams{
+			PublicID: publicID,
+		},
 	)
+
 	if err != nil {
-		return fmt.Errorf("failed to initialize Cloudinary: %v", err)
+		return fmt.Errorf("cloudinary delete error: %v", err)
 	}
 
-	// Delete the image
-	_, err = cld.Upload.Destroy(ctx(), uploader.DestroyParams{
-		PublicID: publicID,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to delete image from Cloudinary: %v", err)
-	}
-
+	fmt.Println("✅ Cloudinary delete result:", resp.Result)
 	return nil
-}
-
-// ctx is a helper to create a context for Cloudinary API calls
-func ctx() (c context.Context) {
-	c = context.Background()
-	return
 }

@@ -3,16 +3,17 @@ package services_impl
 import (
 	"adhomes-backend/models"
 	"adhomes-backend/repositories"
-	"adhomes-backend/services"
 )
 
 type cartServiceImpl struct {
-	cartRepo *repositories.CartRepository
+	cartRepo    *repositories.CartRepository
+	productRepo *repositories.ProductRepository
 }
 
-func NewCartService() services.CartService {
+func NewCartService(cartRepo *repositories.CartRepository, productRepo *repositories.ProductRepository) *cartServiceImpl {
 	return &cartServiceImpl{
-		cartRepo: repositories.NewCartRepository(),
+		cartRepo:    cartRepo,
+		productRepo: productRepo,
 	}
 }
 

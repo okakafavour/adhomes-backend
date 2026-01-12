@@ -6,6 +6,7 @@ import (
 
 	"adhomes-backend/models"
 	"adhomes-backend/repositories"
+	"adhomes-backend/utils"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -61,6 +62,21 @@ func (s *ProductServiceImpl) DeleteProduct(id string) error {
 	if err != nil {
 		return errors.New("invalid product id")
 	}
+
+	// 1️⃣ Fetch product first
+	product, err := s.productRepo.FindByID(objID)
+	if err != nil {
+		return err
+	}
+
+	// 2️⃣ Delete image from Cloudinary (if exists)
+	if product.ImageID != "" {
+		if err := utils.DeleteImageFromCloudinary(product.ImageID); err != nil {
+			return err
+		}
+	}
+
+	// 3️⃣ Delete product from MongoDB
 	return s.productRepo.Delete(objID)
 }
 

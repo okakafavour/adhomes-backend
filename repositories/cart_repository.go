@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"adhomes-backend/config"
 	"adhomes-backend/models"
 	"context"
 	"errors"
@@ -16,9 +15,9 @@ type CartRepository struct {
 	collection *mongo.Collection
 }
 
-func NewCartRepository() *CartRepository {
+func NewCartRepository(collection *mongo.Collection) *CartRepository {
 	return &CartRepository{
-		collection: config.GetCollection("carts"),
+		collection: collection,
 	}
 }
 
